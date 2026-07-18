@@ -30,15 +30,15 @@ export default function RegisterScreen() {
     const { data, error } = await supabase
       .from('socios')
       .select('id, nombre')
-      .eq('telefono', formData.phone)
-      .eq('password', formData.password)
-      .single();
+      .eq('telefono', formData.phone.trim())
+      .eq('password', formData.password.trim())
+      .maybeSingle();
 
     setLoading(false);
 
     if (error || !data) {
       console.error('Error al iniciar sesión:', error);
-      alert('Credenciales incorrectas o usuario no encontrado. Si eres nuevo, regístrate.');
+      alert(`Error: ${error?.message || 'Usuario no encontrado'}. Verifica tus credenciales.`);
       return;
     }
 

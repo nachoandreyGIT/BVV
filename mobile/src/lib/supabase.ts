@@ -3,8 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://ngtghxjllqaelsiekyys.supabase.co';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_E_mADN0IBnA4xucfnst3_Q_8pjl4GKa';
 
 // Adaptador personalizado para evitar el error "window is not defined" 
 // al compilar Expo para la Web (que utiliza renderizado en servidor - SSR).

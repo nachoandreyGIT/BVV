@@ -2,18 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Vibration, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
-import { router } from 'expo-router';
+import { router, Redirect } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+} catch (e) {
+  console.log("Error setting notification handler:", e);
+}
 
 const { width } = Dimensions.get('window');
 // Ajuste de tamaño: reducido a un 50% según el requerimiento (35% de la pantalla, máx 150px)
@@ -27,13 +31,39 @@ export default function PanicScreen() {
   const [helpOnTheWay, setHelpOnTheWay] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
 
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+
+  // Verificación de Autenticación Segura (redirección)
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const id = await AsyncStorage.getItem('socioId');
+        if (!id) {
+          setIsAuthenticated(false);
+        } else {
+          setIsAuthenticated(true);
+        }
+      } catch (e) {
+        console.error('Error al revisar auth:', e);
+        setIsAuthenticated(false);
+      }
+    };
+    checkAuth();
+  }, []);
+
   // Escuchar actualizaciones de estado de la alerta en tiempo real
   useEffect(() => {
+    if (!isAuthenticated) return;
+
     // 1. Pedir permisos de notificaciones locales al iniciar
     const requestNotifPermissions = async () => {
-      const { status } = await Notifications.getPermissionsAsync();
-      if (status !== 'granted') {
-        await Notifications.requestPermissionsAsync();
+      try {
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status !== 'granted') {
+          await Notifications.requestPermissionsAsync();
+        }
+      } catch (e) {
+        console.log('Error pidiendo permisos de notif:', e);
       }
     };
     requestNotifPermissions();
@@ -44,7 +74,7 @@ export default function PanicScreen() {
       const socioId = await AsyncStorage.getItem('socioId');
       if (socioId) {
         // Verificar si el socio actual es bombero
-        const { data: socioData } = await supabase.from('socios').select('is_bombero').eq('id', socioId).single();
+        const { data: socioData } = await supabase.from('socios').select('is_bombero').eq('id', socioId).maybeSingle();
         const isBombero = socioData?.is_bombero || false;
 
         const channelName = 'mis-alertas_' + Date.now();
@@ -99,7 +129,7 @@ export default function PanicScreen() {
     return () => {
       if (channel) supabase.removeChannel(channel);
     };
-  }, []);
+  }, [isAuthenticated]);
 
   // Manejo de la cuenta regresiva
   useEffect(() => {
@@ -131,7 +161,7 @@ export default function PanicScreen() {
       }
 
       // 0.5 Verificar si el socio está suspendido o de baja
-      const { data: socioData } = await supabase.from('socios').select('estado').eq('id', socioId).single();
+        const { data: socioData } = await supabase.from('socios').select('estado').eq('id', socioId).maybeSingle();
       if (socioData && socioData.estado !== 'activo') {
         setStatusMsg(`CUENTA ${socioData.estado.toUpperCase()}: Contacte a administración.`);
         setTimeout(() => {
@@ -199,6 +229,18 @@ export default function PanicScreen() {
     setCountdown(null);
     setActiveAlert(null);
   };
+
+  if (isAuthenticated === false) {
+    return <Redirect href="/register" />;
+  }
+
+  if (isAuthenticated === null) {
+    return (
+      <View style={styles.container}>
+        <LinearGradient colors={['#0f172a', '#000000']} style={StyleSheet.absoluteFill} />
+      </View>
+    );
+  }
 
   // Pantalla Gigante: ¡Ayuda en Camino!
   if (helpOnTheWay) {

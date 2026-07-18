@@ -46,7 +46,7 @@ export default function NotificationsScreen() {
       .from('comunicados')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(30);
+      .limit(10);
     if (comunicados) setNotificacionesGenerales(comunicados);
 
     // 2. Cargar Mis Alertas Históricas
@@ -57,7 +57,7 @@ export default function NotificationsScreen() {
         .select('*')
         .eq('socio_id', socioId)
         .order('created_at', { ascending: false })
-        .limit(30);
+        .limit(10);
       if (alertas) setMisAlertas(alertas);
     }
   };
