@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "794313647502",
+    "project_id": "bvvapp-58329",
+    "storage_bucket": "bvvapp-58329.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:794313647502:android:5e96528d4fd548bf8db0df",
+        "android_client_info": {
+          "package_name": "com.bvv.bomberos"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDPDUSJZ5U-EMm0otLrjyRWAyhlymQzLOM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -59,6 +59,44 @@ export default function Comunicados() {
     if (data) setHistorial(data);
   };
 
+  const sendPushNotification = async (title: string, body: string, priority: string) => {
+    // Obtener todos los tokens válidos
+    const { data: socios } = await supabase
+      .from('socios')
+      .select('push_token')
+      .not('push_token', 'is', null)
+      .neq('push_token', '');
+
+    if (!socios || socios.length === 0) return;
+
+    // Extraer solo los strings de los tokens
+    const tokens = socios.map(s => s.push_token);
+
+    // Preparar los mensajes para el API de Expo
+    const messages = tokens.map(token => ({
+      to: token,
+      sound: 'default',
+      title: title,
+      body: body,
+      priority: priority === 'peligro' ? 'high' : 'default',
+    }));
+
+    // Enviar en bloques usando el API de Expo (Chunking automático recomendado por Expo)
+    try {
+      await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Accept-encoding': 'gzip, deflate',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(messages),
+      });
+    } catch (e) {
+      console.error('Error enviando push:', e);
+    }
+  };
+
   const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!titulo || !mensaje) return;
@@ -68,15 +106,18 @@ export default function Comunicados() {
       { titulo, mensaje, severidad }
     ]);
     
-    setLoading(false);
     if (!error) {
+      // 🚀 ENVIAR NOTIFICACIÓN PUSH A TODOS
+      await sendPushNotification(titulo, mensaje, severidad);
+
       setTitulo('');
       setMensaje('');
-      alert('¡Comunicado publicado a la comunidad exitosamente!');
+      alert('¡Comunicado y Notificación Push enviados a toda la comunidad exitosamente!');
       fetchComunicados();
     } else {
       alert('Error al publicar: ' + error.message);
     }
+    setLoading(false);
   };
 
   return (

@@ -6,6 +6,7 @@ import { router, Redirect } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 
 try {
   Notifications.setNotificationHandler({
@@ -55,18 +56,37 @@ export default function PanicScreen() {
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    // 1. Pedir permisos de notificaciones locales al iniciar
-    const requestNotifPermissions = async () => {
+    // 1. Pedir permisos de notificaciones locales y push al iniciar
+    const setupPushNotifications = async () => {
       try {
-        const { status } = await Notifications.getPermissionsAsync();
-        if (status !== 'granted') {
-          await Notifications.requestPermissionsAsync();
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+        if (existingStatus !== 'granted') {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
+        if (finalStatus !== 'granted') {
+          return;
+        }
+
+        if (Platform.OS !== 'web') {
+          const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? '87c719ea-64c0-488e-9236-15723183e7e7';
+          try {
+            const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+            const pushToken = tokenData.data;
+            const socioId = await AsyncStorage.getItem('socioId');
+            if (socioId) {
+              await supabase.from('socios').update({ push_token: pushToken }).eq('id', socioId);
+            }
+          } catch (tokenError) {
+            console.log('Error obteniendo Push Token (Falta google-services.json si es Android):', tokenError);
+          }
         }
       } catch (e) {
         console.log('Error pidiendo permisos de notif:', e);
       }
     };
-    requestNotifPermissions();
+    setupPushNotifications();
 
     // 2. Suscribirse a las alertas
     let channel: any;
@@ -75,7 +95,7 @@ export default function PanicScreen() {
       if (socioId) {
         // Verificar si el socio actual es bombero
         const { data: socioData } = await supabase.from('socios').select('is_bombero').eq('id', socioId).maybeSingle();
-        const isBombero = socioData?.is_bombero || false;
+        const isBombero = socioData?.is_bombero === true || socioData?.is_bombero === 'true' || socioData?.is_bombero === 1;
 
         const channelName = 'mis-alertas_' + Date.now();
         channel = supabase
@@ -202,6 +222,40 @@ export default function PanicScreen() {
         throw error;
       }
       
+      // 🚀 ENVIAR NOTIFICACIÓN PUSH A BOMBEROS
+      try {
+        const { data: bomberos } = await supabase
+          .from('socios')
+          .select('push_token')
+          .eq('is_bombero', true)
+          .not('push_token', 'is', null)
+          .neq('push_token', '');
+
+        if (bomberos && bomberos.length > 0) {
+          const tokens = bomberos.map(b => b.push_token);
+          const title = activeAlert === 'fire' ? '🚨 NUEVO INCENDIO' : '🚨 NUEVO SINIESTRO VIAL';
+          const messages = tokens.map(token => ({
+            to: token,
+            sound: 'default',
+            title: title,
+            body: `Un vecino ha activado una emergencia en las coordenadas: ${lat.toFixed(4)}, ${lng.toFixed(4)}. ¡Abra la consola para más detalles!`,
+            priority: 'high',
+          }));
+
+          await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Accept-encoding': 'gzip, deflate',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(messages),
+          });
+        }
+      } catch (pushError) {
+        console.error('Error enviando push a bomberos:', pushError);
+      }
+
       setStatusMsg('¡Alerta recibida en la Central!');
 
     } catch (error) {

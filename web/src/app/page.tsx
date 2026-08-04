@@ -39,7 +39,7 @@ export default function Dashboard() {
       const { data, error } = await supabase
         .from('alertas')
         .select(`
-          id, lat, lng, tipo, estado, created_at,
+          id, lat, lng, tipo, estado, socio_id, created_at,
           socios(nombre, telefono, direccion)
         `)
         .gte('created_at', ayer.toISOString())
@@ -52,6 +52,7 @@ export default function Dashboard() {
           lng: a.lng,
           type: a.tipo,
           estado: a.estado,
+          socio_id: a.socio_id,
           user: (a.socios as any)?.nombre || 'Desconocido',
           phone: (a.socios as any)?.telefono || 'N/A',
           address: (a.socios as any)?.direccion || 'N/A',
@@ -146,16 +147,64 @@ export default function Dashboard() {
     setCustomText('');
   };
 
+  const sendPushToVictim = async (socioId: string) => {
+    try {
+      const { data } = await supabase.from('socios').select('push_token').eq('id', socioId).maybeSingle();
+      if (data && data.push_token) {
+        await fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: { 'Accept': 'application/json', 'Accept-encoding': 'gzip, deflate', 'Content-Type': 'application/json' },
+          body: JSON.stringify([{
+            to: data.push_token,
+            sound: 'default',
+            title: '¡AYUDA EN CAMINO! 🚒',
+            body: 'El cuartel ha tomado tu alerta y se dirige hacia ti.',
+            priority: 'high'
+          }]),
+        });
+      }
+    } catch (e) {
+      console.error('Error push victim:', e);
+    }
+  };
+
+  const sendPushToAll = async (title: string, body: string) => {
+    try {
+      const { data: socios } = await supabase.from('socios').select('push_token').not('push_token', 'is', null).neq('push_token', '');
+      if (!socios || socios.length === 0) return;
+      const tokens = socios.map(s => s.push_token);
+      const messages = tokens.map(token => ({
+        to: token,
+        sound: 'default',
+        title: title,
+        body: body,
+        priority: 'high'
+      }));
+      await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: { 'Accept': 'application/json', 'Accept-encoding': 'gzip, deflate', 'Content-Type': 'application/json' },
+        body: JSON.stringify(messages),
+      });
+    } catch (e) {
+      console.error('Error push all:', e);
+    }
+  };
+
   const handleAttendOnly = async () => {
     if (!selectedAlert) return;
     await supabase.from('alertas').update({ estado: 'En proceso' }).eq('id', selectedAlert.id);
+    
+    // 🚀 AVISAR A LA VÍCTIMA
+    if (selectedAlert.socio_id) {
+      await sendPushToVictim(selectedAlert.socio_id);
+    }
+    
     setSelectedAlert(null);
   };
 
   const handleAttendAndBroadcast = async () => {
     if (!selectedAlert) return;
     
-    // Armar el mensaje final
     const selectedTexts = sugerenciasActuales
       .filter(s => selectedSugerenciasIds.includes(s.id))
       .map(s => s.texto);
@@ -165,11 +214,13 @@ export default function Dashboard() {
     }
     
     const finalMessage = selectedTexts.join(' \n\n');
+    const tituloComunicado = selectedAlert.type === 'fire' ? 'INCENDIO' : 'SINIESTRO VIAL';
+    const cuerpoComunicado = finalMessage || 'El cuartel está atendiendo un evento en este momento. Por favor libere las vías.';
 
     // 1. Insertar comunicado público
     await supabase.from('comunicados').insert({
-      titulo: selectedAlert.type === 'fire' ? 'INCENDIO' : 'SINIESTRO VIAL',
-      mensaje: finalMessage || 'El cuartel está atendiendo un evento en este momento. Por favor libere las vías.',
+      titulo: tituloComunicado,
+      mensaje: cuerpoComunicado,
       severidad: 'peligro',
       lat: selectedAlert.lat,
       lng: selectedAlert.lng
@@ -177,6 +228,13 @@ export default function Dashboard() {
 
     // 2. Marcar como en proceso
     await supabase.from('alertas').update({ estado: 'En proceso' }).eq('id', selectedAlert.id);
+    
+    // 🚀 AVISAR A LA VÍCTIMA Y AL PUEBLO
+    if (selectedAlert.socio_id) {
+      await sendPushToVictim(selectedAlert.socio_id);
+    }
+    await sendPushToAll(`🚨 AVISO A LA COMUNIDAD: ${tituloComunicado}`, cuerpoComunicado);
+
     setSelectedAlert(null);
   };
 
