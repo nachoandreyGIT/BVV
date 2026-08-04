@@ -242,7 +242,7 @@ export default function PanicScreen() {
             priority: 'high',
           }));
 
-          await fetch('https://exp.host/--/api/v2/push/send', {
+          await fetch('https://bomberos-veronica.vercel.app/api/push', {
             method: 'POST',
             headers: {
               'Accept': 'application/json',

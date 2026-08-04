@@ -151,7 +151,7 @@ export default function Dashboard() {
     try {
       const { data } = await supabase.from('socios').select('push_token').eq('id', socioId).maybeSingle();
       if (data && data.push_token) {
-        await fetch('https://exp.host/--/api/v2/push/send', {
+        await fetch('/api/push', {
           method: 'POST',
           headers: { 'Accept': 'application/json', 'Accept-encoding': 'gzip, deflate', 'Content-Type': 'application/json' },
           body: JSON.stringify([{
@@ -180,7 +180,7 @@ export default function Dashboard() {
         body: body,
         priority: 'high'
       }));
-      await fetch('https://exp.host/--/api/v2/push/send', {
+      await fetch('/api/push', {
         method: 'POST',
         headers: { 'Accept': 'application/json', 'Accept-encoding': 'gzip, deflate', 'Content-Type': 'application/json' },
         body: JSON.stringify(messages),

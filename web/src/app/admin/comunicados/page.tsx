@@ -83,7 +83,7 @@ export default function Comunicados() {
 
     // Enviar en bloques usando el API de Expo (Chunking automático recomendado por Expo)
     try {
-      await fetch('https://exp.host/--/api/v2/push/send', {
+      await fetch('/api/push', {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
