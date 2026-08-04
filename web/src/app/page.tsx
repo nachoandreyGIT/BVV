@@ -159,7 +159,8 @@ export default function Dashboard() {
             sound: 'default',
             title: '¡AYUDA EN CAMINO! 🚒',
             body: 'El cuartel ha tomado tu alerta y se dirige hacia ti.',
-            priority: 'high'
+            priority: 'high',
+            data: { url: '/notifications' }
           }]),
         });
       }
@@ -178,7 +179,8 @@ export default function Dashboard() {
         sound: 'default',
         title: title,
         body: body,
-        priority: 'high'
+        priority: 'high',
+        data: { url: '/notifications' }
       }));
       await fetch('/api/push', {
         method: 'POST',

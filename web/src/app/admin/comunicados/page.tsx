@@ -79,6 +79,7 @@ export default function Comunicados() {
       title: title,
       body: body,
       priority: priority === 'peligro' ? 'high' : 'default',
+      data: { url: '/notifications' }
     }));
 
     // Enviar en bloques usando el API de Expo (Chunking automático recomendado por Expo)
