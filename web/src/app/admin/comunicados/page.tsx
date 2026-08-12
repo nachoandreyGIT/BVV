@@ -78,7 +78,7 @@ export default function Comunicados() {
       sound: 'default',
       title: title,
       body: body,
-      priority: priority === 'peligro' ? 'high' : 'default',
+      priority: 'high', // Forzamos siempre high para emergencias
       data: { url: '/notifications' }
     }));
 
