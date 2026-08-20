@@ -47,7 +47,7 @@ export default function Dashboard() {
       const { data, error } = await supabase
         .from('alertas')
         .select(`
-          id, lat, lng, tipo, estado, socio_id, created_at, nombre_reportante, telefono_reportante,
+          id, lat, lng, tipo, estado, socio_id, created_at,
           socios(nombre, telefono, direccion)
         `)
         .gte('created_at', ayer.toISOString())
@@ -61,11 +61,10 @@ export default function Dashboard() {
           type: a.tipo,
           estado: a.estado,
           socio_id: a.socio_id,
-          user: (a.socios as any)?.nombre || 'Desconocido',
-          phone: (a.socios as any)?.telefono || a.telefono_reportante || 'N/A',
-          address: (a.socios as any)?.direccion || (a.nombre_reportante ? 'Reporte Manual' : 'N/A'),
-          time: new Date(a.created_at).toLocaleTimeString(),
-          nombre_reportante: a.nombre_reportante
+          user: (a.socios as any)?.nombre || 'Reporte Externo',
+          phone: (a.socios as any)?.telefono || 'N/A',
+          address: (a.socios as any)?.direccion || 'N/A',
+          time: new Date(a.created_at).toLocaleTimeString()
         }));
         setAlerts(formattedAlerts);
       }
@@ -266,26 +265,31 @@ export default function Dashboard() {
       lng: newAlertLocation.lng
     });
 
-    // 2. Insertar alerta directamente En proceso
-    // Incluimos nombre_reportante y telefono_reportante por si la DB los soporta.
+    // 2. Crear un socio temporal para vincular la alerta (así evitamos fallos si socio_id es obligatorio)
+    let manualSocioId = null;
+    const { data: newSocio, error: socioError } = await supabase.from('socios').insert({
+      nombre: reportero,
+      telefono: telefono,
+      direccion: 'Reporte Manual desde Consola'
+    }).select('id').maybeSingle();
+
+    if (newSocio) {
+      manualSocioId = newSocio.id;
+    } else {
+      console.warn('No se pudo crear socio temporal, intentando insertar alerta sin socio_id:', socioError);
+    }
+
+    // 3. Insertar alerta
     const { error: alertError } = await supabase.from('alertas').insert({
       lat: newAlertLocation.lat,
       lng: newAlertLocation.lng,
       tipo: newAlertType,
       estado: 'En proceso',
-      nombre_reportante: reportero,
-      telefono_reportante: telefono
+      socio_id: manualSocioId
     });
 
     if (alertError) {
-      console.error('Error creando alerta manual (puede que falten las columnas nombre_reportante o telefono_reportante):', alertError);
-      // Fallback: intentar insertar sin esos campos si falló por schema
-      await supabase.from('alertas').insert({
-        lat: newAlertLocation.lat,
-        lng: newAlertLocation.lng,
-        tipo: newAlertType,
-        estado: 'En proceso'
-      });
+      console.error('Error creando alerta manual en BD:', alertError);
     }
 
     // 🚀 AVISAR AL PUEBLO
