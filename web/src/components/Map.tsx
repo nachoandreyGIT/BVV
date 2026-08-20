@@ -1,5 +1,5 @@
 'use client';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { useEffect } from 'react';
@@ -38,6 +38,23 @@ const accidentIconStatic = L.divIcon({
   popupAnchor: [0, -20]
 });
 
+const newLocationIcon = L.divIcon({
+  className: 'custom-div-icon',
+  html: `<div style="font-size: 60px; line-height: 60px; animation: bounce 1s infinite; text-shadow: 0 0 15px #3b82f6;">📍</div>`,
+  iconSize: [60, 60],
+  iconAnchor: [30, 60],
+  popupAnchor: [0, -60]
+});
+
+function MapClickHandler({ onClick }: { onClick: (latlng: L.LatLng) => void }) {
+  useMapEvents({
+    click(e) {
+      onClick(e.latlng);
+    },
+  });
+  return null;
+}
+
 interface MapProps {
   alerts: Array<{
     id: string;
@@ -49,9 +66,12 @@ interface MapProps {
     phone: string;
     address: string;
   }>;
+  isSelectionMode?: boolean;
+  onLocationSelected?: (lat: number, lng: number) => void;
+  selectedLocation?: { lat: number; lng: number } | null;
 }
 
-export default function Map({ alerts }: MapProps) {
+export default function Map({ alerts, isSelectionMode, onLocationSelected, selectedLocation }: MapProps) {
   // Centro aproximado de Verónica, Punta Indio
   const position: [number, number] = [-35.3855, -57.3400];
 
@@ -86,6 +106,18 @@ export default function Map({ alerts }: MapProps) {
           </Popup>
         </Marker>
       ))}
+
+      {isSelectionMode && onLocationSelected && (
+        <MapClickHandler onClick={(latlng) => onLocationSelected(latlng.lat, latlng.lng)} />
+      )}
+
+      {selectedLocation && (
+        <Marker position={[selectedLocation.lat, selectedLocation.lng]} icon={newLocationIcon}>
+          <Popup>
+            <div style={{ fontWeight: 'bold', color: '#3b82f6' }}>Nueva Ubicación Seleccionada</div>
+          </Popup>
+        </Marker>
+      )}
     </MapContainer>
   );
 }

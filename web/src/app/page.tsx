@@ -24,6 +24,14 @@ export default function Dashboard() {
   const [selectedSugerenciasIds, setSelectedSugerenciasIds] = useState<number[]>([]);
   const [customText, setCustomText] = useState('');
 
+  // Estados para creación de alerta manual
+  const [isCreatingAlert, setIsCreatingAlert] = useState(false);
+  const [newAlertLocation, setNewAlertLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [newAlertType, setNewAlertType] = useState<'fire' | 'accident'>('fire');
+  const [newAlertMessage, setNewAlertMessage] = useState('');
+  const [newAlertReporterName, setNewAlertReporterName] = useState('');
+  const [newAlertReporterPhone, setNewAlertReporterPhone] = useState('');
+
   useEffect(() => {
     const fetchSugerencias = async () => {
       // Ignoramos errores si la tabla aún no existe, para no romper la UI
@@ -39,7 +47,7 @@ export default function Dashboard() {
       const { data, error } = await supabase
         .from('alertas')
         .select(`
-          id, lat, lng, tipo, estado, socio_id, created_at,
+          id, lat, lng, tipo, estado, socio_id, created_at, nombre_reportante, telefono_reportante,
           socios(nombre, telefono, direccion)
         `)
         .gte('created_at', ayer.toISOString())
@@ -54,9 +62,10 @@ export default function Dashboard() {
           estado: a.estado,
           socio_id: a.socio_id,
           user: (a.socios as any)?.nombre || 'Desconocido',
-          phone: (a.socios as any)?.telefono || 'N/A',
-          address: (a.socios as any)?.direccion || 'N/A',
-          time: new Date(a.created_at).toLocaleTimeString()
+          phone: (a.socios as any)?.telefono || a.telefono_reportante || 'N/A',
+          address: (a.socios as any)?.direccion || (a.nombre_reportante ? 'Reporte Manual' : 'N/A'),
+          time: new Date(a.created_at).toLocaleTimeString(),
+          nombre_reportante: a.nombre_reportante
         }));
         setAlerts(formattedAlerts);
       }
@@ -240,6 +249,56 @@ export default function Dashboard() {
     setSelectedAlert(null);
   };
 
+  const handleCreateManualAlert = async () => {
+    if (!newAlertLocation) return;
+    
+    const tituloComunicado = newAlertType === 'fire' ? 'INCENDIO' : 'SINIESTRO VIAL';
+    const cuerpoComunicado = newAlertMessage.trim() !== '' ? newAlertMessage : 'El cuartel está atendiendo un evento en este momento. Por favor libere las vías.';
+    const reportero = newAlertReporterName.trim() !== '' ? newAlertReporterName : 'Reporte Externo';
+    const telefono = newAlertReporterPhone.trim() !== '' ? newAlertReporterPhone : 'N/A';
+
+    // 1. Insertar comunicado público
+    await supabase.from('comunicados').insert({
+      titulo: tituloComunicado,
+      mensaje: cuerpoComunicado,
+      severidad: 'peligro',
+      lat: newAlertLocation.lat,
+      lng: newAlertLocation.lng
+    });
+
+    // 2. Insertar alerta directamente En proceso
+    // Incluimos nombre_reportante y telefono_reportante por si la DB los soporta.
+    const { error: alertError } = await supabase.from('alertas').insert({
+      lat: newAlertLocation.lat,
+      lng: newAlertLocation.lng,
+      tipo: newAlertType,
+      estado: 'En proceso',
+      nombre_reportante: reportero,
+      telefono_reportante: telefono
+    });
+
+    if (alertError) {
+      console.error('Error creando alerta manual (puede que falten las columnas nombre_reportante o telefono_reportante):', alertError);
+      // Fallback: intentar insertar sin esos campos si falló por schema
+      await supabase.from('alertas').insert({
+        lat: newAlertLocation.lat,
+        lng: newAlertLocation.lng,
+        tipo: newAlertType,
+        estado: 'En proceso'
+      });
+    }
+
+    // 🚀 AVISAR AL PUEBLO
+    await sendPushToAll(`🚨 AVISO A LA COMUNIDAD: ${tituloComunicado}`, cuerpoComunicado);
+
+    setIsCreatingAlert(false);
+    setNewAlertLocation(null);
+    setNewAlertMessage('');
+    setNewAlertReporterName('');
+    setNewAlertReporterPhone('');
+    setNewAlertType('fire');
+  };
+
   const pendientes = alerts.filter(a => a.estado === 'Pendiente');
   const enProceso = alerts.filter(a => a.estado === 'En proceso');
 
@@ -336,6 +395,91 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* MODAL DE CREACIÓN DE ALERTA MANUAL */}
+      {isCreatingAlert && newAlertLocation && (
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-[2000] flex items-center justify-center">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="bg-slate-950 p-6 border-b border-slate-800 flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                  <ShieldAlert className="text-red-500" />
+                  Configurar Alerta Manual
+                </h2>
+                <p className="text-slate-400 mt-1">Complete los datos del reporte para notificar a la comunidad.</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setNewAlertLocation(null);
+                  setIsCreatingAlert(false);
+                }} 
+                className="text-slate-500 hover:text-white"
+              >
+                <X size={28} />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-[60vh] space-y-6">
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-bold text-slate-400 mb-2">Nombre del Reportante</label>
+                  <input 
+                    type="text"
+                    placeholder="Ej. Juan Pérez"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                    value={newAlertReporterName}
+                    onChange={(e) => setNewAlertReporterName(e.target.value)}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-bold text-slate-400 mb-2">Teléfono (opcional)</label>
+                  <input 
+                    type="text"
+                    placeholder="Ej. 2221-555555"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                    value={newAlertReporterPhone}
+                    onChange={(e) => setNewAlertReporterPhone(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-400 mb-2">Tipo de Evento</label>
+                <div className="flex gap-4">
+                  <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${newAlertType === 'fire' ? 'bg-red-900/40 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>
+                    <input type="radio" name="alertType" className="hidden" checked={newAlertType === 'fire'} onChange={() => setNewAlertType('fire')} />
+                    <Flame size={20} /> Incendio
+                  </label>
+                  <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${newAlertType === 'accident' ? 'bg-orange-900/40 border-orange-500 text-orange-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>
+                    <input type="radio" name="alertType" className="hidden" checked={newAlertType === 'accident'} onChange={() => setNewAlertType('accident')} />
+                    <Car size={20} /> Siniestro Vial
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-400 mb-2">Mensaje para la Comunidad (Aviso)</label>
+                <textarea
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-4 text-white focus:outline-none focus:border-blue-500 transition-colors resize-none"
+                  rows={3}
+                  placeholder="Detalles del evento. Ej: Fuego en banquina, circular con precaución."
+                  value={newAlertMessage}
+                  onChange={(e) => setNewAlertMessage(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="p-6 bg-slate-950 border-t border-slate-800 flex gap-4">
+              <button 
+                onClick={handleCreateManualAlert}
+                className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-lg transition-colors shadow-lg shadow-red-900/20"
+              >
+                CREAR ALERTA Y NOTIFICAR AL PUEBLO
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sidebar de Alertas (35%) */}
       <div className="w-[35%] bg-slate-900 border-r border-slate-800 flex flex-col shadow-2xl z-10">
         <div className="p-6 border-b border-slate-800 bg-slate-950 flex flex-col justify-between">
@@ -388,6 +532,16 @@ export default function Dashboard() {
             className={`w-full py-3 rounded-lg font-bold text-sm transition-colors border shadow-lg ${audioEnabled ? 'bg-green-600 hover:bg-green-500 text-white border-green-400 shadow-green-900/50' : 'bg-slate-800 text-slate-300 border-slate-600 hover:bg-slate-700'}`}
           >
             {audioEnabled ? '🔊 SIRENA DESBLOQUEADA Y ACTIVA' : '🔇 CLIC PARA DESBLOQUEAR SIRENA'}
+          </button>
+          
+          <button 
+            onClick={() => {
+              setIsCreatingAlert(!isCreatingAlert);
+              setNewAlertLocation(null);
+            }}
+            className={`w-full py-3 mt-4 rounded-lg font-bold text-sm transition-colors border shadow-lg ${isCreatingAlert ? 'bg-blue-600 hover:bg-blue-500 text-white border-blue-400' : 'bg-slate-800 text-slate-300 border-slate-600 hover:bg-slate-700'}`}
+          >
+            {isCreatingAlert ? 'CANCELAR CREACIÓN DE ALERTA' : '🚨 GENERAR ALERTA MANUAL'}
           </button>
         </div>
 
@@ -473,7 +627,20 @@ export default function Dashboard() {
       </div>
 
       <div className="w-[65%] h-full relative bg-black">
-        <Map alerts={alerts as any} />
+        {isCreatingAlert && !newAlertLocation && (
+          <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[1000] bg-blue-600/90 backdrop-blur-md border border-blue-400 p-4 rounded-xl shadow-2xl text-white font-bold animate-pulse text-center">
+            📍 HAGA CLIC EN EL MAPA PARA INDICAR<br/>LA UBICACIÓN DE LA EMERGENCIA
+          </div>
+        )}
+        
+        <Map 
+          alerts={alerts as any} 
+          isSelectionMode={isCreatingAlert}
+          onLocationSelected={(lat, lng) => {
+            if (isCreatingAlert) setNewAlertLocation({lat, lng});
+          }}
+          selectedLocation={newAlertLocation}
+        />
         
         <div className="absolute top-6 right-6 z-[1000] bg-slate-900/90 backdrop-blur-md border border-slate-700 p-4 rounded-xl shadow-2xl">
           <div className="flex items-center gap-6">
