@@ -1,5 +1,5 @@
 'use client';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { useEffect } from 'react';
@@ -55,6 +55,16 @@ function MapClickHandler({ onClick }: { onClick: (latlng: L.LatLng) => void }) {
   return null;
 }
 
+function MapController({ center }: { center?: [number, number] }) {
+  const map = useMap();
+  useEffect(() => {
+    if (center) {
+      map.flyTo(center, 15, { animate: true, duration: 1.5 });
+    }
+  }, [center, map]);
+  return null;
+}
+
 interface MapProps {
   alerts: Array<{
     id: string;
@@ -69,55 +79,65 @@ interface MapProps {
   isSelectionMode?: boolean;
   onLocationSelected?: (lat: number, lng: number) => void;
   selectedLocation?: { lat: number; lng: number } | null;
+  focusLocation?: [number, number] | null;
 }
 
-export default function Map({ alerts, isSelectionMode, onLocationSelected, selectedLocation }: MapProps) {
+export default function Map({ alerts, isSelectionMode, onLocationSelected, selectedLocation, focusLocation }: MapProps) {
   // Centro aproximado de Verónica, Punta Indio
   const position: [number, number] = [-35.3855, -57.3400];
 
   return (
-    <MapContainer center={position} zoom={15} style={{ height: '100%', width: '100%' }}>
-      {/* Usamos un mapa oscuro de CartoDB para que combine con el tema del cuartel */}
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-      />
-      
-      {alerts.map((alert) => (
-        <Marker 
-          key={alert.id} 
-          position={[alert.lat, alert.lng]} 
-          icon={
-            alert.estado === 'Pendiente'
-              ? (alert.type === 'fire' ? fireIconActive : accidentIconActive)
-              : (alert.type === 'fire' ? fireIconStatic : accidentIconStatic)
-          }
-        >
-          <Popup>
-            <div style={{ padding: '5px', minWidth: '200px' }}>
-              <h3 style={{ fontWeight: 'bold', fontSize: '16px', color: alert.type === 'fire' ? '#ef4444' : '#f97316', marginBottom: '8px', marginTop: 0 }}>
-                {alert.type === 'fire' ? '🔴 INCENDIO' : '🟠 SINIESTRO'} 
-                {alert.estado !== 'Pendiente' && <span style={{fontSize: '12px', color: '#94a3b8', marginLeft: '10px'}}>({alert.estado})</span>}
-              </h3>
-              <p style={{ margin: '4px 0' }}><strong>Vecino:</strong> {alert.user}</p>
-              <p style={{ margin: '4px 0' }}><strong>Tel:</strong> {alert.phone}</p>
-              <p style={{ margin: '4px 0' }}><strong>Vivienda:</strong> {alert.address}</p>
-            </div>
-          </Popup>
-        </Marker>
-      ))}
+    <>
+      <style>{`
+        .dark-map-tiles {
+          filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+        }
+      `}</style>
+      <MapContainer center={position} zoom={15} style={{ height: '100%', width: '100%' }}>
+        {focusLocation && <MapController center={focusLocation} />}
+        {/* Usamos OSM estándar con filtro CSS para modo oscuro sin requerir API Key */}
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          className="dark-map-tiles"
+        />
+        
+        {alerts.map((alert) => (
+          <Marker 
+            key={alert.id} 
+            position={[alert.lat, alert.lng]} 
+            icon={
+              alert.estado === 'Pendiente'
+                ? (alert.type === 'fire' ? fireIconActive : accidentIconActive)
+                : (alert.type === 'fire' ? fireIconStatic : accidentIconStatic)
+            }
+          >
+            <Popup>
+              <div style={{ padding: '5px', minWidth: '200px' }}>
+                <h3 style={{ fontWeight: 'bold', fontSize: '16px', color: alert.type === 'fire' ? '#ef4444' : '#f97316', marginBottom: '8px', marginTop: 0 }}>
+                  {alert.type === 'fire' ? '🔴 INCENDIO' : '🟠 SINIESTRO'} 
+                  {alert.estado !== 'Pendiente' && <span style={{fontSize: '12px', color: '#94a3b8', marginLeft: '10px'}}>({alert.estado})</span>}
+                </h3>
+                <p style={{ margin: '4px 0' }}><strong>Vecino:</strong> {alert.user}</p>
+                <p style={{ margin: '4px 0' }}><strong>Tel:</strong> {alert.phone}</p>
+                <p style={{ margin: '4px 0' }}><strong>Vivienda:</strong> {alert.address}</p>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
 
-      {isSelectionMode && onLocationSelected && (
-        <MapClickHandler onClick={(latlng) => onLocationSelected(latlng.lat, latlng.lng)} />
-      )}
+        {isSelectionMode && onLocationSelected && (
+          <MapClickHandler onClick={(latlng) => onLocationSelected(latlng.lat, latlng.lng)} />
+        )}
 
-      {selectedLocation && (
-        <Marker position={[selectedLocation.lat, selectedLocation.lng]} icon={newLocationIcon}>
-          <Popup>
-            <div style={{ fontWeight: 'bold', color: '#3b82f6' }}>Nueva Ubicación Seleccionada</div>
-          </Popup>
-        </Marker>
-      )}
-    </MapContainer>
+        {selectedLocation && (
+          <Marker position={[selectedLocation.lat, selectedLocation.lng]} icon={newLocationIcon}>
+            <Popup>
+              <div style={{ fontWeight: 'bold', color: '#3b82f6' }}>Nueva Ubicación Seleccionada</div>
+            </Popup>
+          </Marker>
+        )}
+      </MapContainer>
+    </>
   );
 }

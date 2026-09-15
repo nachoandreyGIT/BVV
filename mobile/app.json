@@ -2,7 +2,7 @@
   "expo": {
     "name": "Bomberos BVV",
     "slug": "mobile",
-    "version": "1.0.14",
+    "version": "1.0.15",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mobile",
@@ -12,7 +12,13 @@
     },
     "android": {
       "package": "com.bvv.bomberos",
-      "versionCode": 14,
+      "versionCode": 15,
+      "permissions": [
+        "VIBRATE",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

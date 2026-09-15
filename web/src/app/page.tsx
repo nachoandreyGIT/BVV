@@ -31,6 +31,7 @@ export default function Dashboard() {
   const [newAlertMessage, setNewAlertMessage] = useState('');
   const [newAlertReporterName, setNewAlertReporterName] = useState('');
   const [newAlertReporterPhone, setNewAlertReporterPhone] = useState('');
+  const [focusLocation, setFocusLocation] = useState<[number, number] | null>(null);
 
   useEffect(() => {
     const fetchSugerencias = async () => {
@@ -67,13 +68,26 @@ export default function Dashboard() {
           time: new Date(a.created_at).toLocaleTimeString()
         }));
         setAlerts(formattedAlerts);
+        
+        setFocusLocation((prev) => {
+          if (!prev) {
+            const pendingAlert = formattedAlerts.find(a => a.estado === 'Pendiente');
+            if (pendingAlert) {
+              return [pendingAlert.lat, pendingAlert.lng];
+            }
+          }
+          return prev;
+        });
       }
     };
     fetchAlerts();
 
     const channel = supabase
       .channel('public:alertas_' + Date.now())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas' }, (payload) => {
+        if (payload.eventType === 'INSERT' && payload.new.estado === 'Pendiente') {
+          setFocusLocation([payload.new.lat, payload.new.lng]);
+        }
         fetchAlerts();
       })
       .subscribe();
@@ -140,6 +154,7 @@ export default function Dashboard() {
 
   const openBroadcastModal = (alert: any) => {
     setSelectedAlert(alert);
+    setFocusLocation([alert.lat, alert.lng]);
     
     const relevant = allSugerencias.filter(s => {
       const tipoSug = s.tipo?.toLowerCase().trim() || '';
@@ -561,7 +576,11 @@ export default function Dashboard() {
             </div>
             <div className="space-y-4">
               {pendientes.map(alert => (
-                <div key={alert.id} className="bg-slate-800 rounded-xl p-5 border border-red-500/30 shadow-lg shadow-red-900/10">
+                <div 
+                  key={alert.id} 
+                  className="bg-slate-800 rounded-xl p-5 border border-red-500/30 shadow-lg shadow-red-900/10 cursor-pointer hover:border-red-400 transition-colors"
+                  onClick={() => setFocusLocation([alert.lat, alert.lng])}
+                >
                   <div className="flex items-center gap-3 mb-4">
                     <div className="bg-red-500/20 text-red-400 p-3 rounded-lg border border-red-500/30">
                       {alert.type === 'fire' ? <Flame size={24} /> : <Car size={24} />}
@@ -603,7 +622,11 @@ export default function Dashboard() {
             </div>
             <div className="space-y-4">
               {enProceso.map(alert => (
-                <div key={alert.id} className="bg-slate-800/50 rounded-xl p-4 border border-blue-500/20">
+                <div 
+                  key={alert.id} 
+                  className="bg-slate-800/50 rounded-xl p-4 border border-blue-500/20 cursor-pointer hover:border-blue-400 transition-colors"
+                  onClick={() => setFocusLocation([alert.lat, alert.lng])}
+                >
                   <div className="flex items-center gap-3 mb-3">
                     <div>
                       <h3 className="font-bold text-slate-300">
@@ -644,6 +667,7 @@ export default function Dashboard() {
             if (isCreatingAlert) setNewAlertLocation({lat, lng});
           }}
           selectedLocation={newAlertLocation}
+          focusLocation={focusLocation}
         />
         
         <div className="absolute top-6 right-6 z-[1000] bg-slate-900/90 backdrop-blur-md border border-slate-700 p-4 rounded-xl shadow-2xl">

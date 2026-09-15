@@ -10,29 +10,42 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'sb_publish
 // al compilar Expo para la Web (que utiliza renderizado en servidor - SSR).
 const ExpoStorage = {
   getItem: (key: string) => {
-    if (Platform.OS === 'web') {
-      if (typeof window === 'undefined') return null;
-      return window.localStorage.getItem(key);
+    try {
+      if (Platform.OS === 'web') {
+        if (typeof window === 'undefined') return null;
+        return window.localStorage.getItem(key);
+      }
+      return AsyncStorage.getItem(key);
+    } catch (e) {
+      console.warn("Error leyendo AsyncStorage:", e);
+      return null;
     }
-    return AsyncStorage.getItem(key);
   },
   setItem: (key: string, value: string) => {
-    if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(key, value);
+    try {
+      if (Platform.OS === 'web') {
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(key, value);
+        }
+        return;
       }
-      return;
+      return AsyncStorage.setItem(key, value);
+    } catch (e) {
+      console.warn("Error guardando en AsyncStorage:", e);
     }
-    return AsyncStorage.setItem(key, value);
   },
   removeItem: (key: string) => {
-    if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem(key);
+    try {
+      if (Platform.OS === 'web') {
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem(key);
+        }
+        return;
       }
-      return;
+      return AsyncStorage.removeItem(key);
+    } catch (e) {
+      console.warn("Error borrando de AsyncStorage:", e);
     }
-    return AsyncStorage.removeItem(key);
   },
 };
 
