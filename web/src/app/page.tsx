@@ -1,9 +1,51 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import { Bell, Flame, Car, Phone, ShieldAlert, X, LogOut } from 'lucide-react';
+import { Bell, Flame, Car, Phone, ShieldAlert, X, LogOut, LifeBuoy, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import ProtectedRoute from '@/components/ProtectedRoute';
+
+const SUGERENCIAS_SUBTIPO: Record<string, string[]> = {
+  fire: [
+    'Vivienda / Domicilio',
+    'Automóvil en vía pública',
+    'Campo / Pastizales / Forestal',
+    'Comercio / Depósito',
+    'Principio de fuego controlado',
+    'Humo denso con corte preventivo'
+  ],
+  accident: [
+    'Colisión entre vehículos',
+    'Vuelco de rodado',
+    'Corte total de calzada',
+    'Calzada reducida / Precaución',
+    'Sin víctimas de gravedad',
+    'Víctimas asistidas en el lugar',
+    'Traslado hacia centro de salud'
+  ],
+  auxilio: [
+    'Asistencia por descompensación médica',
+    'Rescate de persona en altura / pozo',
+    'Rescate animal en altura / pozo',
+    'Riesgo de derrumbe o árbol caído',
+    'Cable de alta tensión con chispas'
+  ],
+  otro: [
+    'Temporal / Alerta de vientos fuertes',
+    'Anegamiento / Inundación zonal',
+    'Patrullaje preventivo de bomberos',
+    'Simulacro oficial de guardia'
+  ]
+};
+
+const CHIPS_VICTIMAS = [
+  'Sin heridos',
+  'Ocupantes ilesos',
+  'Heridos leves asistidos',
+  'Personal de SAME en el lugar',
+  'Víctima atrapada liberada',
+  'Traslado a hospital'
+];
 
 // Importación dinámica de Leaflet para evitar errores en SSR
 const Map = dynamic(() => import('@/components/Map'), { ssr: false, loading: () => <div className="flex h-full w-full items-center justify-center bg-slate-900 text-slate-400">Cargando mapa en tiempo real...</div> });
@@ -22,6 +64,9 @@ export default function Dashboard() {
   const [allSugerencias, setAllSugerencias] = useState<any[]>([]);
   const [sugerenciasActuales, setSugerenciasActuales] = useState<any[]>([]);
   const [selectedSugerenciasIds, setSelectedSugerenciasIds] = useState<number[]>([]);
+  const [broadcastTipo, setBroadcastTipo] = useState<'fire' | 'accident' | 'auxilio' | 'otro'>('fire');
+  const [broadcastSubtipo, setBroadcastSubtipo] = useState('');
+  const [broadcastDetallesVictimas, setBroadcastDetallesVictimas] = useState('');
   const [customText, setCustomText] = useState('');
 
   // Estados para creación de alerta manual
@@ -156,18 +201,72 @@ export default function Dashboard() {
     setSelectedAlert(alert);
     setFocusLocation([alert.lat, alert.lng]);
     
+    // El tipo inicial se deduce si venía predeterminado, o por defecto Incendio
+    const initialTipo: 'fire' | 'accident' | 'auxilio' | 'otro' = 
+      alert.type === 'accident' ? 'accident' : 
+      alert.type === 'fire' ? 'fire' : 'fire';
+
+    setBroadcastTipo(initialTipo);
+    setBroadcastSubtipo('');
+    setBroadcastDetallesVictimas('');
+    
     const relevant = allSugerencias.filter(s => {
       const tipoSug = s.tipo?.toLowerCase().trim() || '';
-      const tipoAlert = alert.type?.toLowerCase().trim() || '';
-      return tipoSug === tipoAlert || tipoSug === 'general';
+      return tipoSug === initialTipo || tipoSug === 'general';
     });
     
-    // Si la tabla de sugerencias tiene datos pero el filtro no trajo nada (por errores de tipeo en la DB), mostramos todas
     const finalSugerencias = relevant.length > 0 ? relevant : allSugerencias;
-    
     setSugerenciasActuales(finalSugerencias);
     setSelectedSugerenciasIds(finalSugerencias.filter(s => s.fija).map(s => s.id));
     setCustomText('');
+  };
+
+  const handleTipoChange = (newTipo: 'fire' | 'accident' | 'auxilio' | 'otro') => {
+    setBroadcastTipo(newTipo);
+    const relevant = allSugerencias.filter(s => {
+      const tipoSug = s.tipo?.toLowerCase().trim() || '';
+      return tipoSug === newTipo || tipoSug === 'general';
+    });
+    const finalSugerencias = relevant.length > 0 ? relevant : allSugerencias;
+    setSugerenciasActuales(finalSugerencias);
+  };
+
+  const handleAddSubtipoChip = (chip: string) => {
+    if (!broadcastSubtipo) {
+      setBroadcastSubtipo(chip);
+    } else if (!broadcastSubtipo.includes(chip)) {
+      setBroadcastSubtipo(prev => `${prev} • ${chip}`);
+    } else {
+      setBroadcastSubtipo(prev => prev.replace(` • ${chip}`, '').replace(chip, '').trim());
+    }
+  };
+
+  const handleAddVictimasChip = (chip: string) => {
+    if (!broadcastDetallesVictimas) {
+      setBroadcastDetallesVictimas(chip);
+    } else if (!broadcastDetallesVictimas.includes(chip)) {
+      setBroadcastDetallesVictimas(prev => `${prev}, ${chip}`);
+    }
+  };
+
+  const buildPreviewBody = () => {
+    const partes: string[] = [];
+    if (broadcastSubtipo.trim()) {
+      partes.push(`📍 Lugar / Tipo: ${broadcastSubtipo.trim()}`);
+    }
+    if (broadcastDetallesVictimas.trim()) {
+      partes.push(`👥 Estado / Afectados: ${broadcastDetallesVictimas.trim()}`);
+    }
+    const selectedTexts = sugerenciasActuales
+      .filter(s => selectedSugerenciasIds.includes(s.id))
+      .map(s => s.texto);
+    if (selectedTexts.length > 0) {
+      partes.push(selectedTexts.join(' \n'));
+    }
+    if (customText.trim()) {
+      partes.push(`ℹ️ Indicaciones: ${customText.trim()}`);
+    }
+    return partes.join('\n\n');
   };
 
   const sendPushToVictim = async (socioId: string) => {
@@ -230,21 +329,18 @@ export default function Dashboard() {
   const handleAttendAndBroadcast = async () => {
     if (!selectedAlert) return;
     
-    const selectedTexts = sugerenciasActuales
-      .filter(s => selectedSugerenciasIds.includes(s.id))
-      .map(s => s.texto);
-    
-    if (customText.trim() !== '') {
-      selectedTexts.push(customText.trim());
-    }
-    
-    const finalMessage = selectedTexts.join(' \n\n');
-    const tituloComunicado = selectedAlert.type === 'fire' 
-      ? 'INCENDIO' 
-      : selectedAlert.type === 'accident' 
-        ? 'SINIESTRO VIAL' 
-        : 'EMERGENCIA COMUNITARIA';
-    const cuerpoComunicado = finalMessage || 'El cuartel está atendiendo un evento en este momento. Por favor libere las vías.';
+    let tipoTitulo = 'EMERGENCIA';
+    if (broadcastTipo === 'fire') tipoTitulo = 'INCENDIO';
+    else if (broadcastTipo === 'accident') tipoTitulo = 'ACCIDENTE DE TRÁNSITO';
+    else if (broadcastTipo === 'auxilio') tipoTitulo = 'PEDIDO DE AUXILIO';
+    else tipoTitulo = 'AVISO OFICIAL';
+
+    const tituloComunicado = broadcastSubtipo.trim()
+      ? `${tipoTitulo}: ${broadcastSubtipo.trim().toUpperCase()}`
+      : tipoTitulo;
+
+    const previewBody = buildPreviewBody();
+    const cuerpoComunicado = previewBody || 'El cuartel está atendiendo un llamado en este momento. Por favor libere las vías de acceso a los móviles.';
 
     // 1. Insertar comunicado público
     await supabase.from('comunicados').insert({
@@ -255,14 +351,18 @@ export default function Dashboard() {
       lng: selectedAlert.lng
     });
 
-    // 2. Marcar como en proceso
-    await supabase.from('alertas').update({ estado: 'En proceso' }).eq('id', selectedAlert.id);
+    // 2. Marcar como en proceso y sincronizar con tipo de evento
+    const dbTipo = broadcastTipo === 'accident' ? 'accident' : 'fire';
+    await supabase.from('alertas').update({ 
+      estado: 'En proceso',
+      tipo: dbTipo
+    }).eq('id', selectedAlert.id);
     
     // 🚀 AVISAR A LA VÍCTIMA Y AL PUEBLO
     if (selectedAlert.socio_id) {
       await sendPushToVictim(selectedAlert.socio_id);
     }
-    await sendPushToAll(`🚨 AVISO A LA COMUNIDAD: ${tituloComunicado}`, cuerpoComunicado);
+    await sendPushToAll(`🚨 AVISO: ${tituloComunicado}`, cuerpoComunicado);
 
     setSelectedAlert(null);
   };
@@ -331,42 +431,179 @@ export default function Dashboard() {
       
       {/* MODAL DE DIFUSIÓN MASIVA */}
       {selectedAlert && (
-        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-[2000] flex items-center justify-center">
-          <div className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="absolute inset-0 bg-black/85 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="bg-slate-950 p-6 border-b border-slate-800 flex justify-between items-center">
               <div>
                 <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                   <Bell className="text-blue-500" />
-                  Notificar al Pueblo
+                  Notificar al Pueblo (Alerta Oficial)
                 </h2>
-                <p className="text-slate-400 mt-1">Configure el aviso masivo para los vecinos antes de salir.</p>
+                <p className="text-slate-400 mt-1 text-sm">
+                  Configure los detalles del evento antes de despachar y notificar a la comunidad.
+                </p>
               </div>
-              <button onClick={() => setSelectedAlert(null)} className="text-slate-500 hover:text-white">
-                <X size={28} />
+              <button onClick={() => setSelectedAlert(null)} className="text-slate-500 hover:text-white p-1 rounded-lg">
+                <X size={26} />
               </button>
             </div>
             
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
+            <div className="p-6 overflow-y-auto max-h-[70vh] space-y-6">
               
               {/* Protocolo de Contacto */}
-              <div className="bg-slate-800/80 p-4 rounded-xl mb-6 border border-blue-500/30 shadow-inner">
+              <div className="bg-slate-800/80 p-4 rounded-xl border border-blue-500/30 shadow-inner">
                 <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                  <Phone size={16} /> Protocolo de Contacto
+                  <Phone size={16} /> 1. Datos del Solicitante
                 </h3>
-                <p className="text-slate-300 text-sm mb-1">1. Comuníquese con el vecino para certificar el evento y obtener detalles.</p>
-                <p className="text-slate-300 text-sm mb-3">2. Si el vecino solicita reserva o es un evento menor, elija <strong className="text-slate-100">SOLO ATENDER</strong>.</p>
-                
-                <div className="bg-slate-900 p-3 rounded-lg border border-slate-700/50 flex flex-col gap-1">
-                  <p className="text-sm"><span className="text-slate-500">Vecino:</span> <strong className="text-white">{selectedAlert.user}</strong></p>
-                  <p className="text-sm"><span className="text-slate-500">Teléfono:</span> <a href={`tel:${selectedAlert.phone}`} className="text-blue-400 font-bold hover:underline">{selectedAlert.phone}</a></p>
-                  <p className="text-sm"><span className="text-slate-500">Lugar:</span> <strong className="text-white">{selectedAlert.address}</strong></p>
+                <div className="bg-slate-900 p-3 rounded-lg border border-slate-700/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm"><span className="text-slate-500">Vecino:</span> <strong className="text-white">{selectedAlert.user}</strong></p>
+                    <p className="text-sm"><span className="text-slate-500">Lugar:</span> <strong className="text-white">{selectedAlert.address}</strong></p>
+                  </div>
+                  <a 
+                    href={`tel:${selectedAlert.phone}`} 
+                    className="inline-flex items-center gap-2 bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors border border-blue-500/40"
+                  >
+                    <Phone size={14} /> Llamar: {selectedAlert.phone}
+                  </a>
                 </div>
               </div>
 
+              {/* 2. Selector de Tipo de Evento */}
+              <div>
+                <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-3">
+                  2. Tipo de Emergencia
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleTipoChange('fire')}
+                    className={`flex items-center justify-center gap-2 py-3 px-2 rounded-xl font-bold text-sm border transition-all ${
+                      broadcastTipo === 'fire'
+                        ? 'bg-red-600 text-white border-red-400 shadow-lg shadow-red-900/30'
+                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750'
+                    }`}
+                  >
+                    <Flame size={18} /> Incendio
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleTipoChange('accident')}
+                    className={`flex items-center justify-center gap-2 py-3 px-2 rounded-xl font-bold text-sm border transition-all ${
+                      broadcastTipo === 'accident'
+                        ? 'bg-orange-600 text-white border-orange-400 shadow-lg shadow-orange-900/30'
+                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750'
+                    }`}
+                  >
+                    <Car size={18} /> Accidente
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleTipoChange('auxilio')}
+                    className={`flex items-center justify-center gap-2 py-3 px-2 rounded-xl font-bold text-sm border transition-all ${
+                      broadcastTipo === 'auxilio'
+                        ? 'bg-sky-600 text-white border-sky-400 shadow-lg shadow-sky-900/30'
+                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750'
+                    }`}
+                  >
+                    <LifeBuoy size={18} /> Auxilio / Rescate
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleTipoChange('otro')}
+                    className={`flex items-center justify-center gap-2 py-3 px-2 rounded-xl font-bold text-sm border transition-all ${
+                      broadcastTipo === 'otro'
+                        ? 'bg-amber-600 text-white border-amber-400 shadow-lg shadow-amber-900/30'
+                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750'
+                    }`}
+                  >
+                    <AlertTriangle size={18} /> Otro Evento
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. Subtipo y Características del Hecho */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">
+                    3. Subtipo y Lugar Afectado (Texto Libre)
+                  </h3>
+                  <span className="text-xs text-slate-400">Clic en las sugerencias para insertar</span>
+                </div>
+
+                {/* Chips de sugerencias rápidas según el tipo */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {SUGERENCIAS_SUBTIPO[broadcastTipo]?.map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() => handleAddSubtipoChip(chip)}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${
+                        broadcastSubtipo.includes(chip)
+                          ? 'bg-blue-600 text-white border-blue-400'
+                          : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+                      }`}
+                    >
+                      + {chip}
+                    </button>
+                  ))}
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="Ej: Vivienda particular de dos pisos, pastizales frente a Ruta 36..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3.5 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  value={broadcastSubtipo}
+                  onChange={(e) => setBroadcastSubtipo(e.target.value)}
+                />
+              </div>
+
+              {/* 4. Personas Afectadas / Víctimas y Estado */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">
+                    4. Personas Afectadas y Estado (Opcional)
+                  </h3>
+                  <span className="text-xs text-slate-400">Información para tranquilidad comunitaria</span>
+                </div>
+
+                {/* Chips de víctimas */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {CHIPS_VICTIMAS.map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() => handleAddVictimasChip(chip)}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${
+                        broadcastDetallesVictimas.includes(chip)
+                          ? 'bg-emerald-600 text-white border-emerald-400'
+                          : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+                      }`}
+                    >
+                      + {chip}
+                    </button>
+                  ))}
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="Ej: Ocupantes asistidos ilesos, personal médico trabajando en el lugar..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3.5 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  value={broadcastDetallesVictimas}
+                  onChange={(e) => setBroadcastDetallesVictimas(e.target.value)}
+                />
+              </div>
+
+              {/* 5. Sugerencias Predefinidas Institucionales */}
               {sugerenciasActuales.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Sugerencias Predefinidas</h3>
-                  <div className="space-y-3">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">
+                    5. Sugerencias Institucionales Rápidas
+                  </h3>
+                  <div className="space-y-2">
                     {sugerenciasActuales.map(sug => (
                       <label key={sug.id} className="flex items-start gap-3 p-3 bg-slate-800/50 rounded-lg cursor-pointer border border-slate-700/50 hover:border-slate-500 transition-colors">
                         <input 
@@ -388,29 +625,56 @@ export default function Dashboard() {
                 </div>
               )}
 
+              {/* 6. Indicaciones Espontáneas del Cuartelero */}
               <div>
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Instrucciones Específicas (Opcional)</h3>
+                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">
+                  6. Instrucciones Adicionales del Cuartelero (Opcional)
+                </h3>
                 <textarea
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-4 text-white focus:outline-none focus:border-blue-500 transition-colors resize-none"
-                  rows={3}
-                  placeholder="Ej: Evitar Ruta 36 km 140 por humo en calzada..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3.5 text-white focus:outline-none focus:border-blue-500 transition-colors resize-none"
+                  rows={2}
+                  placeholder="Ej: Circular con balizas encendidas, desviar por calle 22 hacia Verónica centro..."
                   value={customText}
                   onChange={(e) => setCustomText(e.target.value)}
                 />
               </div>
+
+              {/* 7. Live Preview (Vista previa en vivo de la notificación) */}
+              <div className="bg-slate-950 p-4 rounded-xl border border-blue-500/40 shadow-inner">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
+                    📱 Vista Previa del Aviso a los Vecinos
+                  </span>
+                  <span className="text-[11px] text-slate-500">Notificación Push Móvil</span>
+                </div>
+                <div className="bg-slate-900 rounded-lg p-3.5 border border-slate-800">
+                  <p className="text-sm font-black text-white flex items-center gap-2">
+                    <span>🚨</span>
+                    <span>
+                      {broadcastTipo === 'fire' ? 'INCENDIO' : broadcastTipo === 'accident' ? 'ACCIDENTE DE TRÁNSITO' : broadcastTipo === 'auxilio' ? 'PEDIDO DE AUXILIO' : 'AVISO OFICIAL'}
+                      {broadcastSubtipo.trim() ? `: ${broadcastSubtipo.trim().toUpperCase()}` : ''}
+                    </span>
+                  </p>
+                  <p className="text-xs text-slate-300 mt-2 whitespace-pre-line leading-relaxed">
+                    {buildPreviewBody() || 'El cuartel está atendiendo un evento en este momento. Por favor libere las vías.'}
+                  </p>
+                </div>
+              </div>
+
             </div>
 
             <div className="p-6 bg-slate-950 border-t border-slate-800 flex gap-4">
               <button 
                 onClick={handleAttendOnly}
-                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-lg transition-colors border border-slate-700"
+                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3.5 rounded-lg transition-colors border border-slate-700 text-sm"
               >
                 SOLO ATENDER (Silencioso)
               </button>
               <button 
                 onClick={handleAttendAndBroadcast}
-                className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg transition-colors shadow-lg shadow-blue-900/20"
+                className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-lg transition-colors shadow-lg shadow-blue-900/30 text-sm flex items-center justify-center gap-2"
               >
+                <Bell size={18} />
                 NOTIFICAR Y ATENDER
               </button>
             </div>
