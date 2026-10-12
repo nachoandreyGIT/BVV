@@ -6,6 +6,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import * as Notifications from 'expo-notifications';
 import { router, ErrorBoundaryProps } from 'expo-router';
+import { setupNotificationChannels } from '../lib/notificationSounds';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -46,6 +47,9 @@ export default function RootLayout() {
   useEffect(() => {
     // Escondemos el splash después de que se monte el layout
     SplashScreen.hideAsync().catch(() => {});
+    if (Platform.OS !== 'web') {
+      setupNotificationChannels().catch(() => {});
+    }
   }, []);
 
   return (

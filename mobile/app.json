@@ -39,7 +39,12 @@
         "expo-notifications",
         {
           "icon": "./assets/images/android-icon-monochrome.png",
-          "color": "#ffffff"
+          "color": "#ffffff",
+          "sounds": [
+            "./assets/sounds/sirena_cuartel.wav",
+            "./assets/sounds/alarma_tactica.wav",
+            "./assets/sounds/corneta_emergencia.wav"
+          ]
         }
       ],
       [

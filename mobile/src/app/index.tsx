@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
+import { getSelectedChannelId } from '../lib/notificationSounds';
 
 try {
   Notifications.setNotificationHandler({
@@ -110,13 +111,15 @@ export default function PanicScreen() {
           }, async (payload) => {
             if (isBombero && payload.new.estado === 'Pendiente') {
               if (Platform.OS !== 'web') {
+                const channelId = await getSelectedChannelId();
                 await Notifications.scheduleNotificationAsync({
                   content: {
                     title: `🚨 NUEVA ALERTA: ${payload.new.tipo === 'fire' ? 'FUEGO' : payload.new.tipo === 'accident' ? 'SINIESTRO' : 'AYUDA'}`,
                     body: "Un vecino acaba de activar una emergencia. ¡Atención al cuartel!",
                     sound: true,
+                    data: { channelId },
                   },
-                  trigger: null,
+                  trigger: (channelId ? { channelId } : null) as any,
                 });
               }
             }
@@ -130,13 +133,15 @@ export default function PanicScreen() {
             if (payload.new.socio_id == socioId && payload.new.estado === 'En proceso') {
               // Lanzar notificación push al celular (solo si no es web)
               if (Platform.OS !== 'web') {
+                const channelId = await getSelectedChannelId();
                 await Notifications.scheduleNotificationAsync({
                   content: {
                     title: "¡AYUDA EN CAMINO! 🚒",
                     body: "El cuartel ha tomado tu alerta y se dirige hacia ti.",
                     sound: true,
+                    data: { channelId },
                   },
-                  trigger: null,
+                  trigger: (channelId ? { channelId } : null) as any,
                 });
               }
               // Mostrar Pantalla Gigante
