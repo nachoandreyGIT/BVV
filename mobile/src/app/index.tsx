@@ -210,15 +210,30 @@ export default function PanicScreen() {
       }
 
       // 3. Enviar a Supabase
-      const { error } = await supabase.from('alertas').insert([
+      let { error } = await supabase.from('alertas').insert([
         {
           socio_id: socioId,
           lat: lat,
           lng: lng,
-          tipo: activeAlert,
+          tipo: activeAlert || 'ayuda',
           estado: 'Pendiente'
         }
       ]);
+
+      // Si la base de datos tiene la restricción original alertas_tipo_check (que solo aceptaba 'fire' o 'accident'), usamos 'fire' como fallback
+      if (error && (error as any).code === '23514') {
+        console.warn('Constraint alertas_tipo_check detectada en BD. Reintentando con tipo compatible...');
+        const fallback = await supabase.from('alertas').insert([
+          {
+            socio_id: socioId,
+            lat: lat,
+            lng: lng,
+            tipo: 'fire',
+            estado: 'Pendiente'
+          }
+        ]);
+        error = fallback.error;
+      }
 
       if (error) {
         throw error;
