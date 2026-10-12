@@ -73,7 +73,8 @@ export default function CuentaScreen() {
     const meses = Array.from({length: mesesDeuda}).map((_, i) => `Cuota-${i}`);
     
     try {
-      const res = await fetch('http://localhost:3000/api/mercadopago/checkout', {
+      const baseUrl = 'https://bomberos-veronica.vercel.app';
+      const res = await fetch(`${baseUrl}/api/mercadopago/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -100,7 +101,8 @@ export default function CuentaScreen() {
     if (!donationAmount || Number(donationAmount) <= 0) return;
     setIsProcessing(true);
     try {
-      const res = await fetch('http://localhost:3000/api/mercadopago/checkout', {
+      const baseUrl = 'https://bomberos-veronica.vercel.app';
+      const res = await fetch(`${baseUrl}/api/mercadopago/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

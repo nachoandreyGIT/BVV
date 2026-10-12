@@ -45,15 +45,17 @@ export default function AdminDashboard() {
 
         // 4. Datos para el Gráfico de Alertas (Torta)
         const { data: alertasRaw } = await supabase.from('alertas').select('tipo');
-        let fire = 0, accident = 0;
+        let fire = 0, accident = 0, ayuda = 0;
         alertasRaw?.forEach(a => {
           if (a.tipo === 'fire') fire++;
-          if (a.tipo === 'accident') accident++;
+          else if (a.tipo === 'accident') accident++;
+          else ayuda++;
         });
         
         setAlertasData([
           { name: 'Incendios', value: fire, color: '#ef4444' },
-          { name: 'Siniestros', value: accident, color: '#f97316' }
+          { name: 'Siniestros', value: accident, color: '#f97316' },
+          { name: 'Ayuda / SOS', value: ayuda, color: '#dc2626' }
         ]);
 
         // 5. Crecimiento de Socios (Simulando curva hacia el total actual)

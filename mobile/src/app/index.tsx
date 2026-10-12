@@ -14,18 +14,20 @@ try {
       shouldShowAlert: true,
       shouldPlaySound: true,
       shouldSetBadge: false,
-    }),
+      shouldShowBanner: true,
+      shouldShowList: true,
+    } as any),
   });
 } catch (e) {
   console.log("Error setting notification handler:", e);
 }
 
 const { width } = Dimensions.get('window');
-// Ajuste de tamaño: reducido a un 50% según el requerimiento (35% de la pantalla, máx 150px)
-const buttonSize = Math.min(width * 0.35, 150); 
+// Botón central de emergencia de tamaño óptimo (58% del ancho, máx 220px)
+const buttonSize = Math.min(width * 0.58, 220); 
 
 export default function PanicScreen() {
-  const [activeAlert, setActiveAlert] = useState<'fire' | 'accident' | null>(null);
+  const [activeAlert, setActiveAlert] = useState<'ayuda' | 'fire' | 'accident' | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [statusMsg, setStatusMsg] = useState('Obteniendo ubicación GPS...');
@@ -110,7 +112,7 @@ export default function PanicScreen() {
               if (Platform.OS !== 'web') {
                 await Notifications.scheduleNotificationAsync({
                   content: {
-                    title: `🚨 NUEVA ALERTA: ${payload.new.tipo === 'fire' ? 'FUEGO' : 'SINIESTRO'}`,
+                    title: `🚨 NUEVA ALERTA: ${payload.new.tipo === 'fire' ? 'FUEGO' : payload.new.tipo === 'accident' ? 'SINIESTRO' : 'AYUDA'}`,
                     body: "Un vecino acaba de activar una emergencia. ¡Atención al cuartel!",
                     sound: true,
                   },
@@ -153,7 +155,7 @@ export default function PanicScreen() {
 
   // Manejo de la cuenta regresiva
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setTimeout>;
     if (countdown !== null && countdown > 0) {
       timer = setTimeout(() => setCountdown(countdown - 1), 1000);
     } else if (countdown === 0) {
@@ -233,7 +235,11 @@ export default function PanicScreen() {
 
         if (bomberos && bomberos.length > 0) {
           const tokens = bomberos.map(b => b.push_token);
-          const title = activeAlert === 'fire' ? '🚨 NUEVO INCENDIO' : '🚨 NUEVO SINIESTRO VIAL';
+          const title = activeAlert === 'fire' 
+            ? '🚨 NUEVO INCENDIO' 
+            : activeAlert === 'accident' 
+              ? '🚨 NUEVO SINIESTRO VIAL' 
+              : '🚨 SOLICITUD DE AYUDA';
           const messages = tokens.map(token => ({
             to: token,
             sound: 'default',
@@ -270,7 +276,7 @@ export default function PanicScreen() {
     }
   };
 
-  const handleAlert = (type: 'fire' | 'accident') => {
+  const handleAlert = (type: 'ayuda' | 'fire' | 'accident' = 'ayuda') => {
     // Si estamos en web o en dispositivo sin vibración, no fallará
     if (Platform.OS !== 'web') {
       Vibration.vibrate(500); 
@@ -337,7 +343,7 @@ export default function PanicScreen() {
       <View style={styles.container}>
         <LinearGradient colors={['#7f1d1d', '#000000']} style={StyleSheet.absoluteFill} />
         <View style={styles.countdownContainer}>
-          <Text style={styles.cancelPrompt}>ALERTA INICIADA</Text>
+          <Text style={styles.cancelPrompt}>PEDIDO DE AYUDA INICIADO</Text>
           <Text style={styles.countdownText}>{countdown}</Text>
           <Text style={styles.cancelDescription}>
             Se enviará al cuartel en {countdown} segundos.
@@ -391,36 +397,36 @@ export default function PanicScreen() {
         </View>
       )}
 
-      <View style={styles.buttonsContainer}>
-        {/* Fire Button */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onLongPress={() => handleAlert('fire')}
-          delayLongPress={500}
-          style={styles.buttonWrapper}
-        >
-          <LinearGradient colors={['#ef4444', '#991b1b']} style={styles.circleButton}>
-            <View style={styles.innerGlass}>
-              <Text style={styles.buttonText}>FUEGO</Text>
-              <Text style={styles.helpText}>Mantener presionado</Text>
-            </View>
-          </LinearGradient>
-        </TouchableOpacity>
+      <View style={styles.mainContent}>
+        {/* Tarjeta Informativa de Emergencia */}
+        <View style={styles.instructionCard}>
+          <Text style={styles.instructionBadge}>CENTRAL DE EMERGENCIAS</Text>
+          <Text style={styles.instructionText}>
+            En caso de urgencia, mantén presionado el botón. Tu llamado y ubicación GPS llegarán en tiempo real al cuartel.
+          </Text>
+        </View>
 
-        {/* Accident Button */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onLongPress={() => handleAlert('accident')}
-          delayLongPress={500}
-          style={styles.buttonWrapper}
-        >
-          <LinearGradient colors={['#f97316', '#c2410c']} style={styles.circleButton}>
-            <View style={styles.innerGlass}>
-              <Text style={styles.buttonText}>SINIESTRO</Text>
-              <Text style={styles.helpText}>Mantener presionado</Text>
-            </View>
-          </LinearGradient>
-        </TouchableOpacity>
+        {/* Halo Pulsante y Botón Único de Ayuda */}
+        <View style={styles.buttonOuterPulse}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onLongPress={() => handleAlert('ayuda')}
+            delayLongPress={500}
+            style={styles.buttonWrapper}
+          >
+            <LinearGradient colors={['#ef4444', '#dc2626', '#991b1b']} style={styles.circleButton}>
+              <View style={styles.innerGlass}>
+                <Text style={styles.buttonIcon}>🚨</Text>
+                <Text style={styles.buttonText}>AYUDA</Text>
+                <Text style={styles.helpText}>Mantener presionado</Text>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.footerNote}>
+          🛡️ Servicio público de auxilio gratuito 24 hs • Verónica
+        </Text>
       </View>
     </View>
   );
@@ -456,28 +462,64 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     textAlign: 'center',
   },
-  buttonsContainer: {
+  mainContent: {
     width: '100%',
     flex: 1,
-    justifyContent: 'space-evenly',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: Platform.OS === 'web' ? 60 : 120,
+    paddingHorizontal: 24,
+    paddingTop: Platform.OS === 'web' ? 60 : 100,
+  },
+  instructionCard: {
+    backgroundColor: 'rgba(30, 41, 59, 0.7)',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    alignItems: 'center',
+    marginBottom: 40,
+    maxWidth: 380,
+    width: '100%',
+  },
+  instructionBadge: {
+    color: '#f87171',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 2,
+    marginBottom: 6,
+  },
+  instructionText: {
+    color: '#cbd5e1',
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+  },
+  buttonOuterPulse: {
+    width: buttonSize + 36,
+    height: buttonSize + 36,
+    borderRadius: (buttonSize + 36) / 2,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderWidth: 2,
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   buttonWrapper: {
     width: buttonSize,
     height: buttonSize,
     borderRadius: buttonSize / 2,
-    elevation: 20,
-    shadowColor: '#000',
+    elevation: 25,
+    shadowColor: '#ef4444',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
+    shadowOpacity: 0.6,
+    shadowRadius: 25,
   },
   circleButton: {
     width: '100%',
     height: '100%',
     borderRadius: buttonSize / 2,
-    padding: 15,
+    padding: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -485,26 +527,38 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: buttonSize / 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
     justifyContent: 'center',
     alignItems: 'center',
   },
+  buttonIcon: {
+    fontSize: 50,
+    marginBottom: 6,
+  },
   buttonText: {
     color: '#fff',
-    fontSize: 13,
+    fontSize: 28,
     fontWeight: '900',
-    letterSpacing: 1,
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    letterSpacing: 3,
+    textShadowColor: 'rgba(0, 0, 0, 0.7)',
     textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    textShadowRadius: 6,
   },
   helpText: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 11,
     marginTop: 8,
     textTransform: 'uppercase',
+    letterSpacing: 1.5,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  footerNote: {
+    color: '#64748b',
+    fontSize: 12,
+    marginTop: 40,
     letterSpacing: 1,
     textAlign: 'center',
   },

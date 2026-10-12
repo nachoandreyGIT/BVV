@@ -239,7 +239,11 @@ export default function Dashboard() {
     }
     
     const finalMessage = selectedTexts.join(' \n\n');
-    const tituloComunicado = selectedAlert.type === 'fire' ? 'INCENDIO' : 'SINIESTRO VIAL';
+    const tituloComunicado = selectedAlert.type === 'fire' 
+      ? 'INCENDIO' 
+      : selectedAlert.type === 'accident' 
+        ? 'SINIESTRO VIAL' 
+        : 'EMERGENCIA COMUNITARIA';
     const cuerpoComunicado = finalMessage || 'El cuartel está atendiendo un evento en este momento. Por favor libere las vías.';
 
     // 1. Insertar comunicado público
@@ -583,11 +587,11 @@ export default function Dashboard() {
                 >
                   <div className="flex items-center gap-3 mb-4">
                     <div className="bg-red-500/20 text-red-400 p-3 rounded-lg border border-red-500/30">
-                      {alert.type === 'fire' ? <Flame size={24} /> : <Car size={24} />}
+                      {alert.type === 'fire' ? <Flame size={24} /> : alert.type === 'accident' ? <Car size={24} /> : <ShieldAlert size={24} />}
                     </div>
                     <div>
                       <h3 className="font-bold text-white text-lg tracking-wide">
-                        {alert.type === 'fire' ? 'INCENDIO' : 'SINIESTRO VIAL'}
+                        {alert.type === 'fire' ? 'INCENDIO' : alert.type === 'accident' ? 'SINIESTRO VIAL' : 'PEDIDO DE AYUDA'}
                       </h3>
                       <span className="text-xs font-medium text-red-400 bg-red-900/20 px-2 py-1 rounded border border-red-500/20">URGENTE - {alert.time}</span>
                     </div>
@@ -630,7 +634,7 @@ export default function Dashboard() {
                   <div className="flex items-center gap-3 mb-3">
                     <div>
                       <h3 className="font-bold text-slate-300">
-                        {alert.type === 'fire' ? 'INCENDIO' : 'SINIESTRO VIAL'}
+                        {alert.type === 'fire' ? 'INCENDIO' : alert.type === 'accident' ? 'SINIESTRO VIAL' : 'PEDIDO DE AYUDA'}
                       </h3>
                       <span className="text-xs text-slate-500">{alert.time}</span>
                     </div>
