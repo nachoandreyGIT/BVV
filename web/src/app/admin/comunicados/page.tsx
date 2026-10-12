@@ -50,9 +50,11 @@ export default function Comunicados() {
     if (filterTipo === 'incendio') {
       query = query.ilike('titulo', '%INCENDIO%');
     } else if (filterTipo === 'siniestro') {
-      query = query.ilike('titulo', '%SINIESTRO%');
+      query = query.or('titulo.ilike.%SINIESTRO%,titulo.ilike.%ACCIDENTE%');
+    } else if (filterTipo === 'auxilio') {
+      query = query.ilike('titulo', '%AUXILIO%');
     } else if (filterTipo === 'otros') {
-      query = query.not('titulo', 'ilike', '%INCENDIO%').not('titulo', 'ilike', '%SINIESTRO%');
+      query = query.not('titulo', 'ilike', '%INCENDIO%').not('titulo', 'ilike', '%SINIESTRO%').not('titulo', 'ilike', '%ACCIDENTE%').not('titulo', 'ilike', '%AUXILIO%');
     }
 
     const { data } = await query;
@@ -200,7 +202,8 @@ export default function Comunicados() {
               >
                 <option value="todos">Todos</option>
                 <option value="incendio">Incendios</option>
-                <option value="siniestro">Siniestros</option>
+                <option value="siniestro">Accidentes / Siniestros</option>
+                <option value="auxilio">Auxilio / Rescate</option>
                 <option value="otros">Otros Avisos</option>
               </select>
             </div>

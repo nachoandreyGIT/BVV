@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import { Bell, Flame, Car, Phone, ShieldAlert, X, LogOut, LifeBuoy, AlertTriangle } from 'lucide-react';
+import { Bell, Flame, Car, Phone, ShieldAlert, X, LogOut, LifeBuoy, AlertTriangle, Edit3, Megaphone, Zap } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
@@ -52,6 +52,7 @@ const Map = dynamic(() => import('@/components/Map'), { ssr: false, loading: () 
 
 export default function Dashboard() {
   const [alerts, setAlerts] = useState<any[]>([]);
+  const [recentComunicados, setRecentComunicados] = useState<any[]>([]);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [rol, setRol] = useState<string | null>(null);
 
@@ -59,8 +60,10 @@ export default function Dashboard() {
     setRol(localStorage.getItem('rol'));
   }, []);
   
-  // Estados para el Modal de Difusión Masiva
+  // Estados para el Modal de Difusión Masiva y Edición
   const [selectedAlert, setSelectedAlert] = useState<any | null>(null);
+  const [isUpdateMode, setIsUpdateMode] = useState(false);
+  const [editingComunicadoId, setEditingComunicadoId] = useState<string | null>(null);
   const [allSugerencias, setAllSugerencias] = useState<any[]>([]);
   const [sugerenciasActuales, setSugerenciasActuales] = useState<any[]>([]);
   const [selectedSugerenciasIds, setSelectedSugerenciasIds] = useState<number[]>([]);
@@ -89,6 +92,16 @@ export default function Dashboard() {
     const fetchAlerts = async () => {
       const ayer = new Date();
       ayer.setHours(ayer.getHours() - 24);
+
+      // Cargar comunicados recientes de las últimas 24 hs
+      const { data: comsData } = await supabase
+        .from('comunicados')
+        .select('*')
+        .gte('created_at', ayer.toISOString())
+        .order('created_at', { ascending: false });
+      if (comsData) {
+        setRecentComunicados(comsData);
+      }
 
       const { data, error } = await supabase
         .from('alertas')
@@ -128,11 +141,14 @@ export default function Dashboard() {
     fetchAlerts();
 
     const channel = supabase
-      .channel('public:alertas_' + Date.now())
+      .channel('public:alertas_y_coms_' + Date.now())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas' }, (payload) => {
         if (payload.eventType === 'INSERT' && payload.new.estado === 'Pendiente') {
           setFocusLocation([payload.new.lat, payload.new.lng]);
         }
+        fetchAlerts();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'comunicados' }, () => {
         fetchAlerts();
       })
       .subscribe();
@@ -197,28 +213,81 @@ export default function Dashboard() {
     }
   }, [alerts, audioEnabled, selectedAlert]);
 
-  const openBroadcastModal = (alert: any) => {
+  const getAlertComunicado = (alert: any) => {
+    if (!alert || recentComunicados.length === 0) return null;
+    return recentComunicados.find(c => {
+      if (c.lat && c.lng && alert.lat && alert.lng) {
+        const dLat = Math.abs(Number(c.lat) - Number(alert.lat));
+        const dLng = Math.abs(Number(c.lng) - Number(alert.lng));
+        return dLat < 0.003 && dLng < 0.003;
+      }
+      return false;
+    }) || null;
+  };
+
+  const handleQuickAttend = async (alert: any) => {
+    await supabase.from('alertas').update({ estado: 'En proceso' }).eq('id', alert.id);
+    if (alert.socio_id) {
+      await sendPushToVictim(alert.socio_id);
+    }
+  };
+
+  const openBroadcastModal = (alert: any, existingCom: any = null) => {
     setSelectedAlert(alert);
     setFocusLocation([alert.lat, alert.lng]);
     
-    // El tipo inicial se deduce si venía predeterminado, o por defecto Incendio
-    const initialTipo: 'fire' | 'accident' | 'auxilio' | 'otro' = 
-      alert.type === 'accident' ? 'accident' : 
-      alert.type === 'fire' ? 'fire' : 'fire';
+    if (existingCom) {
+      setIsUpdateMode(true);
+      setEditingComunicadoId(existingCom.id);
 
-    setBroadcastTipo(initialTipo);
-    setBroadcastSubtipo('');
-    setBroadcastDetallesVictimas('');
-    
-    const relevant = allSugerencias.filter(s => {
-      const tipoSug = s.tipo?.toLowerCase().trim() || '';
-      return tipoSug === initialTipo || tipoSug === 'general';
-    });
-    
-    const finalSugerencias = relevant.length > 0 ? relevant : allSugerencias;
-    setSugerenciasActuales(finalSugerencias);
-    setSelectedSugerenciasIds(finalSugerencias.filter(s => s.fija).map(s => s.id));
-    setCustomText('');
+      const t = existingCom.titulo?.toUpperCase() || '';
+      let detectedTipo: 'fire' | 'accident' | 'auxilio' | 'otro' = 'fire';
+      if (t.includes('ACCIDENTE') || t.includes('SINIESTRO') || alert.type === 'accident') detectedTipo = 'accident';
+      else if (t.includes('AUXILIO') || alert.type === 'auxilio') detectedTipo = 'auxilio';
+      else if (t.includes('INCENDIO') || alert.type === 'fire') detectedTipo = 'fire';
+      else detectedTipo = 'otro';
+
+      setBroadcastTipo(detectedTipo);
+
+      if (existingCom.titulo?.includes(':')) {
+        const parts = existingCom.titulo.split(':');
+        setBroadcastSubtipo(parts.slice(1).join(':').trim());
+      } else {
+        setBroadcastSubtipo('');
+      }
+
+      setBroadcastDetallesVictimas('');
+      setCustomText(existingCom.mensaje || '');
+
+      const relevant = allSugerencias.filter(s => {
+        const tipoSug = s.tipo?.toLowerCase().trim() || '';
+        return tipoSug === detectedTipo || tipoSug === 'general';
+      });
+      setSugerenciasActuales(relevant.length > 0 ? relevant : allSugerencias);
+      setSelectedSugerenciasIds([]);
+    } else {
+      setIsUpdateMode(false);
+      setEditingComunicadoId(null);
+
+      // El tipo inicial se deduce si venía predeterminado, o por defecto Incendio
+      const initialTipo: 'fire' | 'accident' | 'auxilio' | 'otro' = 
+        alert.type === 'accident' ? 'accident' : 
+        alert.type === 'auxilio' ? 'auxilio' : 
+        alert.type === 'fire' ? 'fire' : 'fire';
+
+      setBroadcastTipo(initialTipo);
+      setBroadcastSubtipo('');
+      setBroadcastDetallesVictimas('');
+      setCustomText('');
+
+      const relevant = allSugerencias.filter(s => {
+        const tipoSug = s.tipo?.toLowerCase().trim() || '';
+        return tipoSug === initialTipo || tipoSug === 'general';
+      });
+      const finalSugerencias = relevant.length > 0 ? relevant : allSugerencias;
+      setSugerenciasActuales(finalSugerencias);
+      setSelectedSugerenciasIds(finalSugerencias.filter(s => s.fija).map(s => s.id));
+    }
   };
 
   const handleTipoChange = (newTipo: 'fire' | 'accident' | 'auxilio' | 'otro') => {
@@ -367,6 +436,53 @@ export default function Dashboard() {
     setSelectedAlert(null);
   };
 
+  const handleSaveCorrection = async (sendPush: boolean) => {
+    if (!selectedAlert) return;
+
+    let tipoTitulo = 'EMERGENCIA';
+    if (broadcastTipo === 'fire') tipoTitulo = 'INCENDIO';
+    else if (broadcastTipo === 'accident') tipoTitulo = 'ACCIDENTE DE TRÁNSITO';
+    else if (broadcastTipo === 'auxilio') tipoTitulo = 'PEDIDO DE AUXILIO';
+    else tipoTitulo = 'AVISO OFICIAL';
+
+    const baseTitulo = broadcastSubtipo.trim()
+      ? `${tipoTitulo}: ${broadcastSubtipo.trim().toUpperCase()}`
+      : tipoTitulo;
+
+    const preview = buildPreviewBody();
+    const cuerpoFinal = preview || customText || 'El cuartel continúa interviniendo en el lugar del evento.';
+
+    if (editingComunicadoId) {
+      await supabase.from('comunicados').update({
+        titulo: baseTitulo,
+        mensaje: cuerpoFinal,
+      }).eq('id', editingComunicadoId);
+    } else {
+      await supabase.from('comunicados').insert({
+        titulo: baseTitulo,
+        mensaje: cuerpoFinal,
+        severidad: 'peligro',
+        lat: selectedAlert.lat,
+        lng: selectedAlert.lng
+      });
+    }
+
+    // Actualizar tipo de alerta si cambió
+    const dbTipo = broadcastTipo === 'accident' ? 'accident' : 'fire';
+    await supabase.from('alertas').update({ 
+      tipo: dbTipo,
+      estado: 'En proceso'
+    }).eq('id', selectedAlert.id);
+
+    if (sendPush) {
+      await sendPushToAll(`🚨 ACTUALIZACIÓN: ${baseTitulo}`, cuerpoFinal);
+    }
+
+    setSelectedAlert(null);
+    setIsUpdateMode(false);
+    setEditingComunicadoId(null);
+  };
+
   const handleCreateManualAlert = async () => {
     if (!newAlertLocation) return;
     
@@ -436,14 +552,33 @@ export default function Dashboard() {
             <div className="bg-slate-950 p-6 border-b border-slate-800 flex justify-between items-center">
               <div>
                 <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                  <Bell className="text-blue-500" />
-                  Notificar al Pueblo (Alerta Oficial)
+                  {isUpdateMode ? (
+                    <>
+                      <Edit3 className="text-amber-400" />
+                      Modificar / Actualizar Aviso a la Comunidad
+                    </>
+                  ) : (
+                    <>
+                      <Bell className="text-blue-500" />
+                      Notificar al Pueblo (Alerta Oficial)
+                    </>
+                  )}
                 </h2>
                 <p className="text-slate-400 mt-1 text-sm">
-                  Configure los detalles del evento antes de despachar y notificar a la comunidad.
+                  {isUpdateMode
+                    ? 'Corrija datos o redacte una ampliación de la situación. Se actualizará en la app de todos los vecinos.'
+                    : 'Configure los detalles del evento antes de despachar y notificar a la comunidad.'
+                  }
                 </p>
               </div>
-              <button onClick={() => setSelectedAlert(null)} className="text-slate-500 hover:text-white p-1 rounded-lg">
+              <button 
+                onClick={() => {
+                  setSelectedAlert(null);
+                  setIsUpdateMode(false);
+                  setEditingComunicadoId(null);
+                }} 
+                className="text-slate-500 hover:text-white p-1 rounded-lg"
+              >
                 <X size={26} />
               </button>
             </div>
@@ -663,20 +798,53 @@ export default function Dashboard() {
 
             </div>
 
-            <div className="p-6 bg-slate-950 border-t border-slate-800 flex gap-4">
-              <button 
-                onClick={handleAttendOnly}
-                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3.5 rounded-lg transition-colors border border-slate-700 text-sm"
-              >
-                SOLO ATENDER (Silencioso)
-              </button>
-              <button 
-                onClick={handleAttendAndBroadcast}
-                className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-lg transition-colors shadow-lg shadow-blue-900/30 text-sm flex items-center justify-center gap-2"
-              >
-                <Bell size={18} />
-                NOTIFICAR Y ATENDER
-              </button>
+            <div className="p-6 bg-slate-950 border-t border-slate-800 flex flex-col sm:flex-row gap-3">
+              {isUpdateMode ? (
+                <>
+                  <button 
+                    onClick={() => {
+                      setSelectedAlert(null);
+                      setIsUpdateMode(false);
+                      setEditingComunicadoId(null);
+                    }}
+                    className="sm:w-1/4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3.5 rounded-lg transition-colors border border-slate-700 text-sm"
+                  >
+                    CANCELAR
+                  </button>
+                  <button 
+                    onClick={() => handleSaveCorrection(false)}
+                    className="flex-1 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 font-bold py-3.5 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+                    title="Actualiza el texto en la app de los vecinos de forma silenciosa"
+                  >
+                    <Edit3 size={18} />
+                    GUARDAR CORRECCIÓN (Silencioso)
+                  </button>
+                  <button 
+                    onClick={() => handleSaveCorrection(true)}
+                    className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-lg transition-colors shadow-lg shadow-blue-900/30 text-sm flex items-center justify-center gap-2"
+                    title="Actualiza y envía una notificación push con prefijo ACTUALIZACIÓN"
+                  >
+                    <Bell size={18} />
+                    GUARDAR Y ENVIAR PUSH
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button 
+                    onClick={handleAttendOnly}
+                    className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3.5 rounded-lg transition-colors border border-slate-700 text-sm"
+                  >
+                    SOLO ATENDER (Silencioso)
+                  </button>
+                  <button 
+                    onClick={handleAttendAndBroadcast}
+                    className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-lg transition-colors shadow-lg shadow-blue-900/30 text-sm flex items-center justify-center gap-2"
+                  >
+                    <Bell size={18} />
+                    NOTIFICAR Y ATENDER
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -780,6 +948,14 @@ export default function Dashboard() {
             </div>
             
             <div className="flex gap-2">
+              <a 
+                href="/admin/comunicados" 
+                className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-3 py-2 rounded-lg border border-slate-700 transition-colors flex items-center gap-1.5"
+                title="Historial de Comunicados y Edición"
+              >
+                <Megaphone size={14} className="text-blue-400" />
+                AVISOS
+              </a>
               <button 
                 onClick={() => {
                   localStorage.removeItem('rol');
@@ -867,12 +1043,29 @@ export default function Dashboard() {
                     <p><span className="text-slate-500">Lugar:</span> <strong className="text-white">{alert.address}</strong></p>
                   </div>
 
-                  <button 
-                    onClick={() => openBroadcastModal(alert)}
-                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg transition-colors shadow-lg"
-                  >
-                    ATENDER EVENTO
-                  </button>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleQuickAttend(alert);
+                      }}
+                      className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-2.5 px-2 rounded-lg text-xs transition-colors border border-slate-600 flex items-center justify-center gap-1.5"
+                      title="Silencia la alarma, pasa a eventos en curso y avisa a la víctima para salir rápido"
+                    >
+                      <Zap size={14} className="text-yellow-400" />
+                      TOMAR GUARDIA (Rápido)
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openBroadcastModal(alert);
+                      }}
+                      className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 px-2 rounded-lg text-xs transition-colors shadow-lg flex items-center justify-center gap-1.5"
+                    >
+                      <Bell size={14} />
+                      ATENDER Y NOTIFICAR
+                    </button>
+                  </div>
                 </div>
               ))}
               {pendientes.length === 0 && <p className="text-sm text-slate-500 text-center py-4">No hay emergencias nuevas.</p>}
@@ -889,33 +1082,81 @@ export default function Dashboard() {
               </span>
             </div>
             <div className="space-y-4">
-              {enProceso.map(alert => (
-                <div 
-                  key={alert.id} 
-                  className="bg-slate-800/50 rounded-xl p-4 border border-blue-500/20 cursor-pointer hover:border-blue-400 transition-colors"
-                  onClick={() => setFocusLocation([alert.lat, alert.lng])}
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <div>
-                      <h3 className="font-bold text-slate-300">
-                        {alert.type === 'fire' ? 'INCENDIO' : alert.type === 'accident' ? 'SINIESTRO VIAL' : 'PEDIDO DE AYUDA'}
-                      </h3>
-                      <span className="text-xs text-slate-500">{alert.time}</span>
+              {enProceso.map(alert => {
+                const linkedCom = getAlertComunicado(alert);
+                return (
+                  <div 
+                    key={alert.id} 
+                    className="bg-slate-800/60 rounded-xl p-4 border border-blue-500/20 cursor-pointer hover:border-blue-400 transition-colors"
+                    onClick={() => setFocusLocation([alert.lat, alert.lng])}
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <div>
+                        <h3 className="font-bold text-slate-200 text-base">
+                          {alert.type === 'fire' ? 'INCENDIO' : alert.type === 'accident' ? 'SINIESTRO VIAL' : 'PEDIDO DE AYUDA'}
+                        </h3>
+                        <span className="text-xs text-slate-400">{alert.time}</span>
+                      </div>
+                    </div>
+                    <div className="text-sm text-slate-300 mb-3">
+                      <strong className="text-white">{alert.user}</strong> — {alert.address}
+                    </div>
+
+                    {linkedCom ? (
+                      <div className="mb-3 p-2.5 bg-blue-950/50 rounded-lg border border-blue-500/30 text-xs">
+                        <div className="text-blue-300 font-bold flex items-center gap-1.5 mb-1">
+                          <Bell size={13} />
+                          Aviso oficial emitido:
+                        </div>
+                        <p className="text-slate-300 line-clamp-1">{linkedCom.titulo}</p>
+                      </div>
+                    ) : (
+                      <div className="mb-3 p-2.5 bg-amber-950/40 rounded-lg border border-amber-500/30 text-xs">
+                        <div className="text-amber-300 font-bold flex items-center gap-1.5 mb-0.5">
+                          <AlertTriangle size={13} />
+                          Atendida en silencio:
+                        </div>
+                        <p className="text-slate-400">Sin notificación masiva emitida aún.</p>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openBroadcastModal(alert, linkedCom);
+                        }}
+                        className={`flex-1 font-bold py-2 px-2 rounded-lg transition-colors text-xs flex items-center justify-center gap-1.5 ${
+                          linkedCom 
+                            ? 'bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40' 
+                            : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg'
+                        }`}
+                      >
+                        {linkedCom ? (
+                          <>
+                            <Edit3 size={13} />
+                            MODIFICAR / ACTUALIZAR
+                          </>
+                        ) : (
+                          <>
+                            <Bell size={13} />
+                            NOTIFICAR AL PUEBLO
+                          </>
+                        )}
+                      </button>
+                      <button 
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          await supabase.from('alertas').update({ estado: 'Cerrado' }).eq('id', alert.id);
+                        }}
+                        className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-3 rounded-lg transition-colors text-xs"
+                      >
+                        CERRAR
+                      </button>
                     </div>
                   </div>
-                  <div className="text-sm text-slate-400 mb-3">
-                    {alert.user} - {alert.address}
-                  </div>
-                  <button 
-                    onClick={async () => {
-                      await supabase.from('alertas').update({ estado: 'Cerrado' }).eq('id', alert.id);
-                    }}
-                    className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 rounded-lg transition-colors text-sm"
-                  >
-                    MARCAR COMO CERRADO
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
