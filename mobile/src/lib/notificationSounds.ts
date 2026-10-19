@@ -1,7 +1,6 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
-import { Audio } from 'expo-av';
 
 export interface AlertSoundOption {
   id: string;
@@ -10,7 +9,7 @@ export interface AlertSoundOption {
   icono: string;
   channelId: string;
   soundFile: string | null;
-  requireAsset: any;
+  requireAsset: boolean;
 }
 
 export const ALERT_SOUND_OPTIONS: AlertSoundOption[] = [
@@ -21,7 +20,7 @@ export const ALERT_SOUND_OPTIONS: AlertSoundOption[] = [
     icono: '🚨',
     channelId: 'channel_sirena_cuartel',
     soundFile: 'sirena_cuartel.wav',
-    requireAsset: require('../../assets/sounds/sirena_cuartel.wav'),
+    requireAsset: true,
   },
   {
     id: 'alarma_tactica',
@@ -30,7 +29,7 @@ export const ALERT_SOUND_OPTIONS: AlertSoundOption[] = [
     icono: '⚠️',
     channelId: 'channel_alarma_tactica',
     soundFile: 'alarma_tactica.wav',
-    requireAsset: require('../../assets/sounds/alarma_tactica.wav'),
+    requireAsset: true,
   },
   {
     id: 'corneta_emergencia',
@@ -39,7 +38,7 @@ export const ALERT_SOUND_OPTIONS: AlertSoundOption[] = [
     icono: '📢',
     channelId: 'channel_corneta_emergencia',
     soundFile: 'corneta_emergencia.wav',
-    requireAsset: require('../../assets/sounds/corneta_emergencia.wav'),
+    requireAsset: true,
   },
   {
     id: 'sistema',
@@ -48,13 +47,13 @@ export const ALERT_SOUND_OPTIONS: AlertSoundOption[] = [
     icono: '📱',
     channelId: 'channel_default_sistema',
     soundFile: null,
-    requireAsset: null,
+    requireAsset: false,
   },
 ];
 
 const PREFERRED_SOUND_KEY = 'preferred_alert_sound_id';
 
-let currentSampleSound: Audio.Sound | null = null;
+let currentPreviewNotificationId: string | null = null;
 
 /**
  * Configura los canales de notificación en Android con sus respectivos sonidos nativos
@@ -146,51 +145,41 @@ export async function getSelectedChannelId(): Promise<string> {
 }
 
 /**
- * Reproduce una muestra del sonido seleccionado para que el usuario pueda probarlo
+ * Reproduce una muestra del sonido seleccionado mediante el canal nativo de notificaciones
  */
 export async function playSampleSound(soundId: string): Promise<void> {
   await stopSampleSound();
 
   const option = ALERT_SOUND_OPTIONS.find(opt => opt.id === soundId);
-  if (!option || !option.requireAsset) return;
+  if (!option || Platform.OS === 'web') return;
 
   try {
-    await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      shouldDuckAndroid: true,
+    await setupNotificationChannels();
+    const notifId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `${option.icono} Prueba: ${option.nombre}`,
+        body: option.subtitulo,
+        sound: option.soundFile || true,
+        data: { channelId: option.channelId, isPreview: true },
+      },
+      trigger: (Platform.OS === 'android' ? { channelId: option.channelId } : null) as any,
     });
-
-    const { sound } = await Audio.Sound.createAsync(
-      option.requireAsset,
-      { shouldPlay: true, volume: 1.0 }
-    );
-    currentSampleSound = sound;
-
-    sound.setOnPlaybackStatusUpdate((status) => {
-      if (status.isLoaded && status.didJustFinish) {
-        sound.unloadAsync().catch(() => {});
-        if (currentSampleSound === sound) {
-          currentSampleSound = null;
-        }
-      }
-    });
+    currentPreviewNotificationId = notifId;
   } catch (error) {
     console.warn('Error reproduciendo muestra de sonido:', error);
   }
 }
 
 /**
- * Detiene la reproducción de la muestra en curso
+ * Detiene/descarta la notificación de prueba en curso
  */
 export async function stopSampleSound(): Promise<void> {
-  if (currentSampleSound) {
+  if (currentPreviewNotificationId && Platform.OS !== 'web') {
     try {
-      await currentSampleSound.stopAsync();
-      await currentSampleSound.unloadAsync();
+      await Notifications.dismissNotificationAsync(currentPreviewNotificationId);
     } catch {
       // Ignorar
     }
-    currentSampleSound = null;
+    currentPreviewNotificationId = null;
   }
 }

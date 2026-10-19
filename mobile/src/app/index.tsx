@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Vibration, Platform } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Vibration, Platform, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { router, Redirect } from 'expo-router';
@@ -37,22 +37,36 @@ export default function PanicScreen() {
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
-  // Verificación de Autenticación Segura (redirección)
+  // Verificación de Autenticación Segura (redirección con timeout de respaldo)
   useEffect(() => {
+    let resolved = false;
+    const safetyTimer = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        setIsAuthenticated(false);
+      }
+    }, 1500);
+
     const checkAuth = async () => {
       try {
         const id = await AsyncStorage.getItem('socioId');
-        if (!id) {
-          setIsAuthenticated(false);
-        } else {
-          setIsAuthenticated(true);
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(safetyTimer);
+          setIsAuthenticated(Boolean(id));
         }
       } catch (e) {
         console.error('Error al revisar auth:', e);
-        setIsAuthenticated(false);
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(safetyTimer);
+          setIsAuthenticated(false);
+        }
       }
     };
     checkAuth();
+
+    return () => clearTimeout(safetyTimer);
   }, []);
 
   // Escuchar actualizaciones de estado de la alerta en tiempo real
@@ -318,6 +332,8 @@ export default function PanicScreen() {
     return (
       <View style={styles.container}>
         <LinearGradient colors={['#0f172a', '#000000']} style={StyleSheet.absoluteFill} />
+        <ActivityIndicator size="large" color="#ef4444" />
+        <Text style={[styles.subtitle, { marginTop: 16 }]}>Iniciando BVV Emergencias...</Text>
       </View>
     );
   }

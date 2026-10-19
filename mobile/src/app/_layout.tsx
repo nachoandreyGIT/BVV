@@ -1,11 +1,10 @@
 import 'react-native-gesture-handler';
-import { Stack } from 'expo-router';
+import { Stack, router, ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import * as Notifications from 'expo-notifications';
-import { router, ErrorBoundaryProps } from 'expo-router';
 import { setupNotificationChannels } from '../lib/notificationSounds';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -23,39 +22,38 @@ export function ErrorBoundary(props: ErrorBoundaryProps) {
   );
 }
 
-function NativeNotificationHandler() {
-  const lastNotificationResponse = Notifications.useLastNotificationResponse();
-  useEffect(() => {
-    if (
-      lastNotificationResponse &&
-      lastNotificationResponse.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER
-    ) {
-      const url = lastNotificationResponse.notification.request.content.data?.url as string | undefined;
-      if (url) {
-        // Redirigimos a la url si viene en la notificacion (ej: '/notifications')
-        setTimeout(() => {
-          router.push(url as any);
-        }, 500);
-      }
-    }
-  }, [lastNotificationResponse]);
-
-  return null;
-}
-
 export default function RootLayout() {
   useEffect(() => {
     // Escondemos el splash después de que se monte el layout
     SplashScreen.hideAsync().catch(() => {});
+
     if (Platform.OS !== 'web') {
       setupNotificationChannels().catch(() => {});
+
+      // Manejo seguro de apertura por notificación sin hooks sincrónicos que puedan fallar en crawlers
+      Notifications.getLastNotificationResponseAsync()
+        .then((response) => {
+          if (
+            response &&
+            response.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER
+          ) {
+            const url = response.notification?.request?.content?.data?.url as string | undefined;
+            if (url && typeof url === 'string' && url.startsWith('/')) {
+              setTimeout(() => {
+                try {
+                  router.push(url as any);
+                } catch {}
+              }, 500);
+            }
+          }
+        })
+        .catch(() => {});
     }
   }, []);
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <StatusBar style="light" />
-      {Platform.OS !== 'web' && <NativeNotificationHandler />}
       <Stack screenOptions={{ headerShown: false }} />
     </View>
   );

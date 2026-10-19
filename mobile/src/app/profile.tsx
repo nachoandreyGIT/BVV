@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Platform, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Platform, ActivityIndicator, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
@@ -212,6 +212,15 @@ export default function ProfileScreen() {
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={{ fontSize: 20, marginRight: 10 }}>🚪</Text>
           <Text style={styles.logoutText}>Cerrar Sesión</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={{ marginTop: 18, padding: 10 }}
+          onPress={() => Linking.openURL('https://bomberos-veronica.vercel.app/privacidad')}
+        >
+          <Text style={{ color: '#94a3b8', fontSize: 13, textDecorationLine: 'underline', textAlign: 'center' }}>
+            🔒 Política de Privacidad y Tratamiento de Datos
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
