@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function RegisterScreen() {
   const [isLogin, setIsLogin] = useState(true); // Por defecto mostrar Iniciar Sesión
+  const [isRecovering, setIsRecovering] = useState(false); // Modo Recuperar Contraseña
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -14,6 +15,11 @@ export default function RegisterScreen() {
     password: '',
     homeDescription: '',
     vehicleDescription: '',
+  });
+  const [recoveryData, setRecoveryData] = useState({
+    phone: '',
+    email: '',
+    newPassword: '',
   });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -45,6 +51,70 @@ export default function RegisterScreen() {
     // Iniciar sesión guardando el ID
     await AsyncStorage.setItem('socioId', data.id.toString());
     router.replace('/');
+  };
+
+  const handleRecoverPassword = async () => {
+    const phoneClean = recoveryData.phone.trim();
+    const emailClean = recoveryData.email.trim().toLowerCase();
+    const newPassClean = recoveryData.newPassword.trim();
+
+    if (!phoneClean || !emailClean || !newPassClean) {
+      alert('Por favor, ingresa tu teléfono, tu correo electrónico registrado y la nueva contraseña.');
+      return;
+    }
+
+    if (newPassClean.length < 4) {
+      alert('La nueva contraseña debe tener al menos 4 caracteres.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Buscar socio por teléfono
+      const { data: socio, error: findError } = await supabase
+        .from('socios')
+        .select('id, nombre, email')
+        .eq('telefono', phoneClean)
+        .maybeSingle();
+
+      if (findError || !socio) {
+        setLoading(false);
+        alert('No encontramos ningún vecino registrado con ese número de teléfono.');
+        return;
+      }
+
+      const socioEmail = (socio.email || '').trim().toLowerCase();
+      if (!socioEmail || socioEmail !== emailClean) {
+        setLoading(false);
+        alert('El correo electrónico ingresado no coincide con el registrado para ese número de teléfono.');
+        return;
+      }
+
+      // Actualizar contraseña en Supabase
+      const { error: updateError } = await supabase
+        .from('socios')
+        .update({ password: newPassClean })
+        .eq('id', socio.id);
+
+      setLoading(false);
+
+      if (updateError) {
+        console.error('Error al actualizar contraseña:', updateError);
+        alert('Hubo un error al guardar la nueva contraseña. Intenta nuevamente.');
+        return;
+      }
+
+      // Guardar sesión y entrar directamente
+      await AsyncStorage.setItem('socioId', socio.id.toString());
+      alert(`¡Contraseña actualizada con éxito! Bienvenido/a de nuevo, ${socio.nombre}.`);
+      setIsRecovering(false);
+      router.replace('/');
+    } catch (e) {
+      setLoading(false);
+      console.error('Error en recuperación de clave:', e);
+      alert('Error de conexión al intentar recuperar la contraseña.');
+    }
   };
 
   const handleRegister = async () => {
@@ -97,13 +167,13 @@ export default function RegisterScreen() {
         <View style={styles.tabContainer}>
           <TouchableOpacity 
             style={[styles.tab, isLogin && styles.activeTab]}
-            onPress={() => setIsLogin(true)}
+            onPress={() => { setIsLogin(true); setIsRecovering(false); }}
           >
             <Text style={[styles.tabText, isLogin && styles.activeTabText]}>INICIAR SESIÓN</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.tab, !isLogin && styles.activeTab]}
-            onPress={() => setIsLogin(false)}
+            onPress={() => { setIsLogin(false); setIsRecovering(false); }}
           >
             <Text style={[styles.tabText, !isLogin && styles.activeTabText]}>SOY NUEVO</Text>
           </TouchableOpacity>
@@ -111,6 +181,67 @@ export default function RegisterScreen() {
 
         <View style={styles.formCard}>
           {isLogin ? (
+            isRecovering ? (
+              <>
+                <Text style={styles.sectionTitle}>Recuperar Contraseña</Text>
+                <Text style={styles.helpText}>
+                  Ingresa el teléfono y el correo electrónico con los que te registraste para crear una nueva contraseña.
+                </Text>
+
+                <TextInput
+                  style={styles.input}
+                  placeholder="Teléfono Celular registrado"
+                  placeholderTextColor="#64748b"
+                  keyboardType="phone-pad"
+                  value={recoveryData.phone}
+                  onChangeText={(t) => setRecoveryData({ ...recoveryData, phone: t })}
+                />
+
+                <TextInput
+                  style={styles.input}
+                  placeholder="Correo Electrónico registrado"
+                  placeholderTextColor="#64748b"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={recoveryData.email}
+                  onChangeText={(t) => setRecoveryData({ ...recoveryData, email: t })}
+                />
+
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    style={[styles.input, { marginBottom: 0 }]}
+                    placeholder="Nueva Contraseña"
+                    placeholderTextColor="#64748b"
+                    secureTextEntry={!showPassword}
+                    value={recoveryData.newPassword}
+                    onChangeText={(t) => setRecoveryData({ ...recoveryData, newPassword: t })}
+                  />
+                  <TouchableOpacity 
+                    style={styles.eyeButton} 
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
+                    <Text style={styles.eyeText}>{showPassword ? '🙈' : '👁️'}</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity 
+                  style={[styles.submitButton, loading && { opacity: 0.5 }]} 
+                  onPress={handleRecoverPassword}
+                  disabled={loading}
+                >
+                  <LinearGradient colors={['#f59e0b', '#d97706']} style={styles.buttonGradient}>
+                    <Text style={styles.submitButtonText}>{loading ? 'VERIFICANDO...' : 'GUARDAR NUEVA CONTRASEÑA'}</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.forgotPasswordButton} 
+                  onPress={() => setIsRecovering(false)}
+                >
+                  <Text style={styles.forgotPasswordText}>← Volver a Iniciar Sesión</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
             <>
               <Text style={styles.sectionTitle}>Acceso Vecinos</Text>
               <Text style={styles.helpText}>
@@ -152,7 +283,18 @@ export default function RegisterScreen() {
                   <Text style={styles.submitButtonText}>{loading ? 'INGRESANDO...' : 'ENTRAR'}</Text>
                 </LinearGradient>
               </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.forgotPasswordButton} 
+                onPress={() => {
+                  setRecoveryData({ phone: formData.phone, email: '', newPassword: '' });
+                  setIsRecovering(true);
+                }}
+              >
+                <Text style={styles.forgotPasswordText}>🔑 ¿Olvidaste tu contraseña? Recupérala aquí</Text>
+              </TouchableOpacity>
             </>
+            )
           ) : (
             <>
               <Text style={styles.sectionTitle}>Datos Personales</Text>
@@ -372,5 +514,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     letterSpacing: 1,
+  },
+  forgotPasswordButton: {
+    marginTop: 18,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  forgotPasswordText: {
+    color: '#38bdf8',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

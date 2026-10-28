@@ -1,12 +1,13 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Search, HeartHandshake, DollarSign, Settings, Ban, Trash2, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { Search, HeartHandshake, DollarSign, Settings, Ban, Trash2, CheckCircle2, ShieldAlert, KeyRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export default function SociosManagement() {
   const [socios, setSocios] = useState<any[]>([]);
   const [cuota, setCuota] = useState(1500);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -91,6 +92,26 @@ export default function SociosManagement() {
     }
   };
 
+  const handleResetPassword = async (socio: any) => {
+    const nuevaClave = window.prompt(
+      `Cambiar contraseña de ${socio.nombre} (Tel: ${socio.telefono}).\nIngrese la nueva contraseña:`,
+      '123456'
+    );
+    if (!nuevaClave || !nuevaClave.trim()) return;
+
+    const { error } = await supabase
+      .from('socios')
+      .update({ password: nuevaClave.trim() })
+      .eq('id', socio.id);
+
+    if (error) {
+      alert('Error al actualizar la contraseña: ' + error.message);
+      return;
+    }
+    alert(`Contraseña de ${socio.nombre} actualizada correctamente a: ${nuevaClave.trim()}`);
+    fetchData();
+  };
+
   const handleEliminarSocio = async (id: string, nombre: string) => {
     if (window.confirm(`¡ATENCIÓN! ¿Estás absolutamente seguro de ELIMINAR a ${nombre}? Esta acción borrará todo su historial y no se puede deshacer.`)) {
       // Primero eliminar registros relacionados para evitar error de Foreign Key
@@ -112,6 +133,16 @@ export default function SociosManagement() {
 
   if (loading) return <div className="text-white p-8">Calculando deudas históricas...</div>;
 
+  const sociosFiltrados = socios.filter((s) => {
+    if (!searchTerm.trim()) return true;
+    const q = searchTerm.toLowerCase();
+    return (
+      (s.nombre || '').toLowerCase().includes(q) ||
+      (s.telefono || '').toLowerCase().includes(q) ||
+      (s.email || '').toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center mb-8">
@@ -128,7 +159,9 @@ export default function SociosManagement() {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
           <input 
             type="text" 
-            placeholder="Buscar socio..." 
+            placeholder="Buscar por nombre, teléfono o email..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-slate-950 border border-slate-800 text-white rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:border-blue-500 transition-colors"
           />
         </div>
@@ -147,7 +180,7 @@ export default function SociosManagement() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800">
-            {socios.map((socio) => (
+            {sociosFiltrados.map((socio) => (
               <tr key={socio.id} className="hover:bg-slate-800/50 transition-colors">
                 <td className="px-6 py-4">
                   <div className="font-medium text-white flex items-center gap-2">
@@ -159,6 +192,7 @@ export default function SociosManagement() {
                     )}
                   </div>
                   <div className="text-slate-400 text-xs">{socio.telefono}</div>
+                  {socio.email && <div className="text-slate-500 text-xs">{socio.email}</div>}
                 </td>
                 <td className="px-6 py-4 text-slate-300">{new Date(socio.created_at).toLocaleDateString()}</td>
                 <td className="px-6 py-4">
@@ -185,6 +219,13 @@ export default function SociosManagement() {
                   ${socio.montoDeuda}
                 </td>
                 <td className="px-6 py-4 flex justify-end gap-2 flex-wrap">
+                  <button
+                    onClick={() => handleResetPassword(socio)}
+                    className="bg-blue-600/20 text-blue-400 hover:bg-blue-600/40 px-2 py-1 rounded transition-colors flex items-center gap-1 border border-blue-600/30 text-xs font-bold"
+                    title="Cambiar o blanquear contraseña del socio"
+                  >
+                    <KeyRound size={14} /> Clave
+                  </button>
                   {socio.mesesDeuda > 0 && (
                     <button 
                       onClick={() => handlePerdonarDeuda(socio)}

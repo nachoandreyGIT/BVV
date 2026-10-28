@@ -92,6 +92,20 @@ export default function ProfileScreen() {
     <View style={styles.container}>
       <LinearGradient colors={['#0f172a', '#000000']} style={StyleSheet.absoluteFill} />
       
+      {/* Cabecera Superior Fija con Botón Volver */}
+      <View style={styles.topHeader}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={async () => {
+            await stopSampleSound();
+            router.push('/');
+          }}
+        >
+          <Text style={styles.backButtonText}>← Volver</Text>
+        </TouchableOpacity>
+        <Text style={styles.topHeaderTitle}>Mi Perfil</Text>
+      </View>
+
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View style={styles.avatarCircle}>
@@ -223,8 +237,14 @@ export default function ProfileScreen() {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
-          <Text style={styles.cancelButtonText}>Volver al Inicio</Text>
+        <TouchableOpacity
+          style={styles.cancelButton}
+          onPress={async () => {
+            await stopSampleSound();
+            router.push('/');
+          }}
+        >
+          <Text style={styles.cancelButtonText}>← Volver al Inicio</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -236,15 +256,42 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
+  topHeader: {
+    paddingTop: Platform.OS === 'web' ? 40 : 60,
+    paddingBottom: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    zIndex: 20,
+  },
+  topHeaderTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+    letterSpacing: 1,
+  },
+  backButton: {
+    position: 'absolute',
+    left: 20,
+    top: Platform.OS === 'web' ? 36 : 56,
+    padding: 8,
+  },
+  backButtonText: {
+    color: '#38bdf8',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   scrollContainer: {
     flexGrow: 1,
     padding: 20,
-    paddingTop: Platform.OS === 'web' ? 40 : 80,
+    paddingTop: 24,
     alignItems: 'center',
   },
   header: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 24,
   },
   avatarCircle: {
     width: 80,
