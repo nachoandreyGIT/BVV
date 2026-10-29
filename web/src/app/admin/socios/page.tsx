@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Search, HeartHandshake, DollarSign, Settings, Ban, Trash2, CheckCircle2, ShieldAlert, KeyRound } from 'lucide-react';
+import { Search, HeartHandshake, DollarSign, Settings, Ban, Trash2, CheckCircle2, ShieldAlert, KeyRound, BellRing } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export default function SociosManagement() {
@@ -112,6 +112,58 @@ export default function SociosManagement() {
     fetchData();
   };
 
+  const handleTestPush = async (socio: any) => {
+    if (!socio.push_token) {
+      alert(`El socio ${socio.nombre} aún no tiene un token Push registrado en su celular (debe abrir la app y aceptar el permiso de notificaciones).`);
+      return;
+    }
+
+    const opcion = window.prompt(
+      `Enviar notificación de prueba SOLO a ${socio.nombre} (${socio.telefono}).\n\nElige qué sonido quieres probar:\n1 = 🚨 Sirena de Cuartel Principal\n2 = ⚠️ Alarma Táctica de Evacuación\n3 = 📢 Corneta Pesada de Rescate\n4 = 📱 Sonido Predeterminado del Teléfono`,
+      '1'
+    );
+    if (!opcion) return;
+
+    const soundMap: Record<string, { soundId: string; channelId: string; label: string }> = {
+      '1': { soundId: 'sirena_cuartel', channelId: 'channel_sirena_cuartel', label: 'Sirena de Cuartel' },
+      '2': { soundId: 'alarma_tactica', channelId: 'channel_alarma_tactica', label: 'Alarma Táctica' },
+      '3': { soundId: 'corneta_emergencia', channelId: 'channel_corneta_emergencia', label: 'Corneta Pesada' },
+      '4': { soundId: 'sistema', channelId: 'channel_default_sistema', label: 'Sonido del Sistema' },
+    };
+
+    const chosen = soundMap[opcion.trim()] || soundMap['1'];
+
+    try {
+      const res = await fetch('/api/push', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify([
+          {
+            to: socio.push_token,
+            title: `🚨 Prueba BVV: ${chosen.label}`,
+            body: `Hola ${socio.nombre}, esta es una prueba individual de notificación (${chosen.label}).`,
+            soundId: chosen.soundId,
+            channelId: chosen.channelId,
+            priority: 'high',
+            data: { url: '/notifications' },
+          },
+        ]),
+      });
+
+      if (res.ok) {
+        alert(`✅ Notificación de prueba (${chosen.label}) enviada al celular de ${socio.nombre}.`);
+      } else {
+        alert('❌ Hubo un error al enviar la notificación de prueba.');
+      }
+    } catch (e) {
+      console.error('Error enviando push de prueba:', e);
+      alert('❌ Error de conexión al enviar la notificación de prueba.');
+    }
+  };
+
   const handleEliminarSocio = async (id: string, nombre: string) => {
     if (window.confirm(`¡ATENCIÓN! ¿Estás absolutamente seguro de ELIMINAR a ${nombre}? Esta acción borrará todo su historial y no se puede deshacer.`)) {
       // Primero eliminar registros relacionados para evitar error de Foreign Key
@@ -219,6 +271,17 @@ export default function SociosManagement() {
                   ${socio.montoDeuda}
                 </td>
                 <td className="px-6 py-4 flex justify-end gap-2 flex-wrap">
+                  <button
+                    onClick={() => handleTestPush(socio)}
+                    className={`px-2 py-1 rounded transition-colors flex items-center gap-1 border text-xs font-bold ${
+                      socio.push_token
+                        ? 'bg-purple-600/20 text-purple-400 hover:bg-purple-600/40 border-purple-600/30'
+                        : 'bg-slate-800/40 text-slate-600 border-slate-700/40 cursor-not-allowed'
+                    }`}
+                    title={socio.push_token ? 'Enviar notificación de prueba solo a este celular' : 'Sin token Push registrado aún'}
+                  >
+                    <BellRing size={14} /> Probar Push
+                  </button>
                   <button
                     onClick={() => handleResetPassword(socio)}
                     className="bg-blue-600/20 text-blue-400 hover:bg-blue-600/40 px-2 py-1 rounded transition-colors flex items-center gap-1 border border-blue-600/30 text-xs font-bold"
