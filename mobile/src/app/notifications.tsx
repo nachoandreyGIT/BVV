@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
-import { getSelectedChannelId } from '../lib/notificationSounds';
+import { triggerLocalAlertNotification } from '../lib/notificationSounds';
 
 export default function NotificationsScreen() {
   const [activeTab, setActiveTab] = useState<'generales' | 'mis_alertas'>('generales');
@@ -23,18 +23,10 @@ export default function NotificationsScreen() {
         const nuevo = payload.new;
         setNotificacionesGenerales(prev => [nuevo, ...prev]);
         
-        if (Platform.OS !== 'web') {
-          const channelId = await getSelectedChannelId();
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: nuevo.severidad === 'peligro' ? `🚨 ${nuevo.titulo}` : `🔔 ${nuevo.titulo}`,
-              body: nuevo.mensaje,
-              sound: true,
-              data: { channelId },
-            },
-            trigger: (channelId ? { channelId } : null) as any,
-          });
-        }
+        await triggerLocalAlertNotification(
+          nuevo.severidad === 'peligro' ? `🚨 ${nuevo.titulo}` : `🔔 ${nuevo.titulo}`,
+          nuevo.mensaje
+        );
       })
       .subscribe();
 

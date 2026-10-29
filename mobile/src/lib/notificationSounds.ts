@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
+import { supabase } from './supabase';
 
 export interface AlertSoundOption {
   id: string;
@@ -61,6 +62,11 @@ let currentPreviewNotificationId: string | null = null;
 export async function setupNotificationChannels(): Promise<void> {
   if (Platform.OS !== 'android') return;
 
+  const alarmAudioAttributes = {
+    usage: Notifications.AndroidAudioUsage.NOTIFICATION,
+    contentType: Notifications.AndroidAudioContentType.SONIFICATION,
+  };
+
   try {
     // 1. Canal Sirena Cuartel
     await Notifications.setNotificationChannelAsync('channel_sirena_cuartel', {
@@ -69,6 +75,7 @@ export async function setupNotificationChannels(): Promise<void> {
       vibrationPattern: [0, 500, 250, 500, 250, 500],
       lightColor: '#FF0000',
       sound: 'sirena_cuartel.wav',
+      audioAttributes: alarmAudioAttributes,
       enableVibrate: true,
       enableLights: true,
       bypassDnd: true,
@@ -81,6 +88,7 @@ export async function setupNotificationChannels(): Promise<void> {
       vibrationPattern: [0, 300, 150, 300, 150, 300],
       lightColor: '#FF4400',
       sound: 'alarma_tactica.wav',
+      audioAttributes: alarmAudioAttributes,
       enableVibrate: true,
       enableLights: true,
       bypassDnd: true,
@@ -93,6 +101,7 @@ export async function setupNotificationChannels(): Promise<void> {
       vibrationPattern: [0, 700, 200, 700],
       lightColor: '#FFAA00',
       sound: 'corneta_emergencia.wav',
+      audioAttributes: alarmAudioAttributes,
       enableVibrate: true,
       enableLights: true,
       bypassDnd: true,
@@ -118,6 +127,20 @@ export async function getSelectedSoundId(): Promise<string> {
     if (saved && ALERT_SOUND_OPTIONS.some(opt => opt.id === saved)) {
       return saved;
     }
+
+    // Si no está en local, intentar recuperarlo de Supabase para este socio
+    const socioId = await AsyncStorage.getItem('socioId');
+    if (socioId) {
+      const { data } = await supabase
+        .from('configuraciones')
+        .select('valor')
+        .eq('clave', `sound_socio_${socioId}`)
+        .maybeSingle();
+      if (data?.valor && ALERT_SOUND_OPTIONS.some(opt => opt.id === data.valor)) {
+        await AsyncStorage.setItem(PREFERRED_SOUND_KEY, data.valor);
+        return data.valor;
+      }
+    }
   } catch (e) {
     console.warn('Error leyendo sonido preferido:', e);
   }
@@ -125,23 +148,63 @@ export async function getSelectedSoundId(): Promise<string> {
 }
 
 /**
- * Guarda el sonido preferido del usuario
+ * Guarda el sonido preferido del usuario tanto localmente como en Supabase
+ * para que las notificaciones Push remotas también usen el canal correcto.
  */
 export async function setSelectedSoundId(soundId: string): Promise<void> {
   try {
     await AsyncStorage.setItem(PREFERRED_SOUND_KEY, soundId);
+    const socioId = await AsyncStorage.getItem('socioId');
+    if (socioId) {
+      await supabase
+        .from('configuraciones')
+        .upsert({ clave: `sound_socio_${socioId}`, valor: soundId });
+    }
   } catch (e) {
     console.warn('Error guardando sonido preferido:', e);
   }
 }
 
 /**
+ * Devuelve la opción de sonido completa seleccionada por el usuario
+ */
+export async function getSelectedSoundOption(): Promise<AlertSoundOption> {
+  const soundId = await getSelectedSoundId();
+  return ALERT_SOUND_OPTIONS.find(opt => opt.id === soundId) || ALERT_SOUND_OPTIONS[0];
+}
+
+/**
  * Devuelve el canal de notificación que corresponde al sonido seleccionado
  */
 export async function getSelectedChannelId(): Promise<string> {
-  const soundId = await getSelectedSoundId();
-  const found = ALERT_SOUND_OPTIONS.find(opt => opt.id === soundId);
-  return found ? found.channelId : 'channel_sirena_cuartel';
+  const option = await getSelectedSoundOption();
+  return option.channelId;
+}
+
+/**
+ * Dispara una notificación local de emergencia usando el canal y archivo de sonido elegidos por el usuario
+ */
+export async function triggerLocalAlertNotification(
+  title: string,
+  body: string,
+  extraData: Record<string, any> = {}
+): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    await setupNotificationChannels();
+    const option = await getSelectedSoundOption();
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        sound: option.soundFile || 'default',
+        data: { channelId: option.channelId, ...extraData },
+      },
+      trigger: (Platform.OS === 'android' ? { channelId: option.channelId } : null) as any,
+    });
+  } catch (error) {
+    console.warn('Error lanzando notificación local con sonido:', error);
+  }
 }
 
 /**
@@ -159,7 +222,7 @@ export async function playSampleSound(soundId: string): Promise<void> {
       content: {
         title: `${option.icono} Prueba: ${option.nombre}`,
         body: option.subtitulo,
-        sound: option.soundFile || true,
+        sound: option.soundFile || 'default',
         data: { channelId: option.channelId, isPreview: true },
       },
       trigger: (Platform.OS === 'android' ? { channelId: option.channelId } : null) as any,

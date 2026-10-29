@@ -7,7 +7,12 @@ import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
-import { getSelectedChannelId } from '../lib/notificationSounds';
+import {
+  setupNotificationChannels,
+  getSelectedSoundId,
+  setSelectedSoundId,
+  triggerLocalAlertNotification,
+} from '../lib/notificationSounds';
 
 try {
   Notifications.setNotificationHandler({
@@ -76,6 +81,8 @@ export default function PanicScreen() {
     // 1. Pedir permisos de notificaciones locales y push al iniciar
     const setupPushNotifications = async () => {
       try {
+        await setupNotificationChannels();
+
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
         let finalStatus = existingStatus;
         if (existingStatus !== 'granted') {
@@ -94,6 +101,9 @@ export default function PanicScreen() {
             const socioId = await AsyncStorage.getItem('socioId');
             if (socioId) {
               await supabase.from('socios').update({ push_token: pushToken }).eq('id', socioId);
+              // Sincronizar también el sonido preferido actual con Supabase para los Push remotos
+              const currentSound = await getSelectedSoundId();
+              await setSelectedSoundId(currentSound);
             }
           } catch (tokenError) {
             console.log('Error obteniendo Push Token (Falta google-services.json si es Android):', tokenError);
@@ -124,18 +134,10 @@ export default function PanicScreen() {
             table: 'alertas'
           }, async (payload) => {
             if (isBombero && payload.new.estado === 'Pendiente') {
-              if (Platform.OS !== 'web') {
-                const channelId = await getSelectedChannelId();
-                await Notifications.scheduleNotificationAsync({
-                  content: {
-                    title: `🚨 NUEVA ALERTA: ${payload.new.tipo === 'fire' ? 'FUEGO' : payload.new.tipo === 'accident' ? 'SINIESTRO' : 'AYUDA'}`,
-                    body: "Un vecino acaba de activar una emergencia. ¡Atención al cuartel!",
-                    sound: true,
-                    data: { channelId },
-                  },
-                  trigger: (channelId ? { channelId } : null) as any,
-                });
-              }
+              await triggerLocalAlertNotification(
+                `🚨 NUEVA ALERTA: ${payload.new.tipo === 'fire' ? 'FUEGO' : payload.new.tipo === 'accident' ? 'SINIESTRO' : 'AYUDA'}`,
+                'Un vecino acaba de activar una emergencia. ¡Atención al cuartel!'
+              );
             }
           })
           // Escuchar ACTUALIZACIONES de la alerta propia (Ayuda en camino)
@@ -145,19 +147,11 @@ export default function PanicScreen() {
             table: 'alertas'
           }, async (payload) => {
             if (payload.new.socio_id == socioId && payload.new.estado === 'En proceso') {
-              // Lanzar notificación push al celular (solo si no es web)
-              if (Platform.OS !== 'web') {
-                const channelId = await getSelectedChannelId();
-                await Notifications.scheduleNotificationAsync({
-                  content: {
-                    title: "¡AYUDA EN CAMINO! 🚒",
-                    body: "El cuartel ha tomado tu alerta y se dirige hacia ti.",
-                    sound: true,
-                    data: { channelId },
-                  },
-                  trigger: (channelId ? { channelId } : null) as any,
-                });
-              }
+              // Lanzar notificación local con el sonido elegido
+              await triggerLocalAlertNotification(
+                '¡AYUDA EN CAMINO! 🚒',
+                'El cuartel ha tomado tu alerta y se dirige hacia ti.'
+              );
               // Mostrar Pantalla Gigante
               setHelpOnTheWay(true);
             }
@@ -454,7 +448,6 @@ export default function PanicScreen() {
               <View style={styles.innerGlass}>
                 <Text style={styles.buttonIcon}>🚨</Text>
                 <Text style={styles.buttonText}>AYUDA</Text>
-                <Text style={styles.helpText}>Mantener presionado</Text>
               </View>
             </LinearGradient>
           </TouchableOpacity>
