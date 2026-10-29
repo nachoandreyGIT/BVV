@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import { Bell, Flame, Car, Phone, ShieldAlert, X, LogOut, LifeBuoy, AlertTriangle, Edit3, Megaphone, Zap } from 'lucide-react';
+import { Bell, Flame, Car, Phone, ShieldAlert, X, LogOut, LifeBuoy, AlertTriangle, Edit3, Megaphone, Zap, MapPin } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
@@ -55,6 +55,7 @@ export default function Dashboard() {
   const [recentComunicados, setRecentComunicados] = useState<any[]>([]);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [rol, setRol] = useState<string | null>(null);
+  const [mobileView, setMobileView] = useState<'alerts' | 'map'>('alerts');
 
   useEffect(() => {
     setRol(localStorage.getItem('rol'));
@@ -852,15 +853,15 @@ export default function Dashboard() {
 
       {/* MODAL DE CREACIÓN DE ALERTA MANUAL */}
       {isCreatingAlert && newAlertLocation && (
-        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-[2000] flex items-center justify-center">
-          <div className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-            <div className="bg-slate-950 p-6 border-b border-slate-800 flex justify-between items-center">
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="bg-slate-950 p-4 sm:p-6 border-b border-slate-800 flex justify-between items-center">
               <div>
-                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                  <ShieldAlert className="text-red-500" />
+                <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+                  <ShieldAlert className="text-red-500 shrink-0" />
                   Configurar Alerta Manual
                 </h2>
-                <p className="text-slate-400 mt-1">Complete los datos del reporte para notificar a la comunidad.</p>
+                <p className="text-slate-400 text-xs sm:text-sm mt-1">Complete los datos del reporte para notificar a la comunidad.</p>
               </div>
               <button 
                 onClick={() => {
@@ -873,8 +874,8 @@ export default function Dashboard() {
               </button>
             </div>
             
-            <div className="p-6 overflow-y-auto max-h-[60vh] space-y-6">
-              <div className="flex gap-4">
+            <div className="p-4 sm:p-6 overflow-y-auto max-h-[60vh] space-y-5">
+              <div className="flex flex-col sm:flex-row gap-4">
                 <div className="flex-1">
                   <label className="block text-sm font-bold text-slate-400 mb-2">Nombre del Reportante</label>
                   <input 
@@ -899,12 +900,12 @@ export default function Dashboard() {
 
               <div>
                 <label className="block text-sm font-bold text-slate-400 mb-2">Tipo de Evento</label>
-                <div className="flex gap-4">
-                  <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${newAlertType === 'fire' ? 'bg-red-900/40 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>
+                <div className="flex gap-3 sm:gap-4">
+                  <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors text-sm font-semibold ${newAlertType === 'fire' ? 'bg-red-900/40 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>
                     <input type="radio" name="alertType" className="hidden" checked={newAlertType === 'fire'} onChange={() => setNewAlertType('fire')} />
                     <Flame size={20} /> Incendio
                   </label>
-                  <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${newAlertType === 'accident' ? 'bg-orange-900/40 border-orange-500 text-orange-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>
+                  <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors text-sm font-semibold ${newAlertType === 'accident' ? 'bg-orange-900/40 border-orange-500 text-orange-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>
                     <input type="radio" name="alertType" className="hidden" checked={newAlertType === 'accident'} onChange={() => setNewAlertType('accident')} />
                     <Car size={20} /> Siniestro Vial
                   </label>
@@ -923,10 +924,10 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="p-6 bg-slate-950 border-t border-slate-800 flex gap-4">
+            <div className="p-4 sm:p-6 bg-slate-950 border-t border-slate-800 flex gap-4">
               <button 
                 onClick={handleCreateManualAlert}
-                className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-lg transition-colors shadow-lg shadow-red-900/20"
+                className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-lg transition-colors shadow-lg shadow-red-900/20 text-sm sm:text-base"
               >
                 CREAR ALERTA Y NOTIFICAR AL PUEBLO
               </button>
@@ -935,19 +936,19 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Sidebar de Alertas (35%) */}
-      <div className="w-[35%] bg-slate-900 border-r border-slate-800 flex flex-col shadow-2xl z-10">
-        <div className="p-6 border-b border-slate-800 bg-slate-950 flex flex-col justify-between">
-          <div className="flex justify-between items-center mb-4">
+      {/* Sidebar de Alertas: 100% ancho en celular, 38% en escritorio */}
+      <div className={`${mobileView === 'alerts' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[38%] xl:w-[35%] h-full bg-slate-900 border-r border-slate-800 flex-col shadow-2xl z-10 pb-14 lg:pb-0`}>
+        <div className="p-4 sm:p-6 border-b border-slate-800 bg-slate-950 flex flex-col justify-between">
+          <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
             <div>
-              <h1 className="text-2xl font-black text-white flex items-center gap-3 tracking-wide">
-                <ShieldAlert className="text-red-500 animate-pulse" size={32} />
+              <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2.5 tracking-wide">
+                <ShieldAlert className="text-red-500 animate-pulse shrink-0" size={28} />
                 CONSOLA ALERTAS
               </h1>
-              <p className="text-slate-400 text-sm mt-1 uppercase tracking-widest font-semibold">Bomberos Verónica</p>
+              <p className="text-slate-400 text-xs sm:text-sm mt-0.5 uppercase tracking-widest font-semibold">Bomberos Verónica</p>
             </div>
             
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <a 
                 href="/admin/comunicados" 
                 className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-3 py-2 rounded-lg border border-slate-700 transition-colors flex items-center gap-1.5"
@@ -956,6 +957,11 @@ export default function Dashboard() {
                 <Megaphone size={14} className="text-blue-400" />
                 AVISOS
               </a>
+              {rol === 'admin' && (
+                <a href="/admin" className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 text-xs font-bold px-3 py-2 rounded-lg border border-blue-500/40 transition-colors">
+                  GESTIÓN
+                </a>
+              )}
               <button 
                 onClick={() => {
                   localStorage.removeItem('rol');
@@ -967,11 +973,6 @@ export default function Dashboard() {
               >
                 <LogOut size={16} />
               </button>
-              {rol === 'admin' && (
-                <a href="/admin" className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-3 py-2 rounded-lg border border-slate-700 transition-colors">
-                  GESTIÓN
-                </a>
-              )}
             </div>
           </div>
           
@@ -992,17 +993,21 @@ export default function Dashboard() {
                 }
               }
             }}
-            className={`w-full py-3 rounded-lg font-bold text-sm transition-colors border shadow-lg ${audioEnabled ? 'bg-green-600 hover:bg-green-500 text-white border-green-400 shadow-green-900/50' : 'bg-slate-800 text-slate-300 border-slate-600 hover:bg-slate-700'}`}
+            className={`w-full py-2.5 sm:py-3 rounded-lg font-bold text-xs sm:text-sm transition-colors border shadow-lg ${audioEnabled ? 'bg-green-600 hover:bg-green-500 text-white border-green-400 shadow-green-900/50' : 'bg-slate-800 text-slate-300 border-slate-600 hover:bg-slate-700'}`}
           >
             {audioEnabled ? '🔊 SIRENA DESBLOQUEADA Y ACTIVA' : '🔇 CLIC PARA DESBLOQUEAR SIRENA'}
           </button>
           
           <button 
             onClick={() => {
-              setIsCreatingAlert(!isCreatingAlert);
+              const nextState = !isCreatingAlert;
+              setIsCreatingAlert(nextState);
               setNewAlertLocation(null);
+              if (nextState) {
+                setMobileView('map');
+              }
             }}
-            className={`w-full py-3 mt-4 rounded-lg font-bold text-sm transition-colors border shadow-lg ${isCreatingAlert ? 'bg-blue-600 hover:bg-blue-500 text-white border-blue-400' : 'bg-slate-800 text-slate-300 border-slate-600 hover:bg-slate-700'}`}
+            className={`w-full py-2.5 sm:py-3 mt-3 rounded-lg font-bold text-xs sm:text-sm transition-colors border shadow-lg ${isCreatingAlert ? 'bg-blue-600 hover:bg-blue-500 text-white border-blue-400' : 'bg-slate-800 text-slate-300 border-slate-600 hover:bg-slate-700'}`}
           >
             {isCreatingAlert ? 'CANCELAR CREACIÓN DE ALERTA' : '🚨 GENERAR ALERTA MANUAL'}
           </button>
@@ -1022,15 +1027,18 @@ export default function Dashboard() {
               {pendientes.map(alert => (
                 <div 
                   key={alert.id} 
-                  className="bg-slate-800 rounded-xl p-5 border border-red-500/30 shadow-lg shadow-red-900/10 cursor-pointer hover:border-red-400 transition-colors"
-                  onClick={() => setFocusLocation([alert.lat, alert.lng])}
+                  className="bg-slate-800 rounded-xl p-4 sm:p-5 border border-red-500/30 shadow-lg shadow-red-900/10 cursor-pointer hover:border-red-400 transition-colors"
+                  onClick={() => {
+                    setFocusLocation([alert.lat, alert.lng]);
+                    setMobileView('map');
+                  }}
                 >
                   <div className="flex items-center gap-3 mb-4">
                     <div className="bg-red-500/20 text-red-400 p-3 rounded-lg border border-red-500/30">
                       {alert.type === 'fire' ? <Flame size={24} /> : alert.type === 'accident' ? <Car size={24} /> : <ShieldAlert size={24} />}
                     </div>
                     <div>
-                      <h3 className="font-bold text-white text-lg tracking-wide">
+                      <h3 className="font-bold text-white text-base sm:text-lg tracking-wide">
                         {alert.type === 'fire' ? 'INCENDIO' : alert.type === 'accident' ? 'SINIESTRO VIAL' : 'PEDIDO DE AYUDA'}
                       </h3>
                       <span className="text-xs font-medium text-red-400 bg-red-900/20 px-2 py-1 rounded border border-red-500/20">URGENTE - {alert.time}</span>
@@ -1043,7 +1051,7 @@ export default function Dashboard() {
                     <p><span className="text-slate-500">Lugar:</span> <strong className="text-white">{alert.address}</strong></p>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1088,7 +1096,10 @@ export default function Dashboard() {
                   <div 
                     key={alert.id} 
                     className="bg-slate-800/60 rounded-xl p-4 border border-blue-500/20 cursor-pointer hover:border-blue-400 transition-colors"
-                    onClick={() => setFocusLocation([alert.lat, alert.lng])}
+                    onClick={() => {
+                      setFocusLocation([alert.lat, alert.lng]);
+                      setMobileView('map');
+                    }}
                   >
                     <div className="flex items-center gap-3 mb-2">
                       <div>
@@ -1162,9 +1173,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="w-[65%] h-full relative bg-black">
+      {/* Mapa en vivo: oculto en celular salvo que mobileView === 'map', 62%/65% en escritorio */}
+      <div className={`${mobileView === 'map' ? 'block' : 'hidden'} lg:block w-full lg:w-[62%] xl:w-[65%] h-full relative bg-black pb-14 lg:pb-0`}>
         {isCreatingAlert && !newAlertLocation && (
-          <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[1000] bg-blue-600/90 backdrop-blur-md border border-blue-400 p-4 rounded-xl shadow-2xl text-white font-bold animate-pulse text-center">
+          <div className="absolute top-4 sm:top-6 left-1/2 -translate-x-1/2 z-[1000] w-[90%] sm:w-auto bg-blue-600/90 backdrop-blur-md border border-blue-400 p-3 sm:p-4 rounded-xl shadow-2xl text-white text-xs sm:text-base font-bold animate-pulse text-center">
             📍 HAGA CLIC EN EL MAPA PARA INDICAR<br/>LA UBICACIÓN DE LA EMERGENCIA
           </div>
         )}
@@ -1179,20 +1191,46 @@ export default function Dashboard() {
           focusLocation={focusLocation}
         />
         
-        <div className="absolute top-6 right-6 z-[1000] bg-slate-900/90 backdrop-blur-md border border-slate-700 p-4 rounded-xl shadow-2xl">
+        <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-[1000] bg-slate-900/90 backdrop-blur-md border border-slate-700 px-3 py-2 sm:p-4 rounded-xl shadow-2xl">
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5 sm:gap-3">
               <div className="relative flex h-3 w-3">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
               </div>
               <div>
-                <p className="text-xs text-slate-400 font-bold tracking-widest uppercase">Estado</p>
-                <p className="text-sm font-bold text-white">ONLINE Y ACTIVO</p>
+                <p className="text-[10px] sm:text-xs text-slate-400 font-bold tracking-widest uppercase">Estado</p>
+                <p className="text-xs sm:text-sm font-bold text-white">ONLINE Y ACTIVO</p>
               </div>
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Barra inferior de navegación en móviles (< lg) para alternar entre Consola de Alertas y Mapa */}
+      <div className="lg:hidden fixed bottom-0 inset-x-0 z-[1500] bg-slate-950 border-t border-slate-800 grid grid-cols-2 h-14 shadow-2xl">
+        <button
+          onClick={() => setMobileView('alerts')}
+          className={`flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider transition-colors ${
+            mobileView === 'alerts'
+              ? 'bg-red-600/20 text-red-400 border-t-2 border-red-500'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <ShieldAlert size={16} />
+          Alertas ({pendientes.length + enProceso.length})
+        </button>
+        <button
+          onClick={() => setMobileView('map')}
+          className={`flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider transition-colors ${
+            mobileView === 'map'
+              ? 'bg-blue-600/20 text-blue-400 border-t-2 border-blue-500'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <MapPin size={16} />
+          Mapa en Vivo
+        </button>
       </div>
       </div>
     </ProtectedRoute>

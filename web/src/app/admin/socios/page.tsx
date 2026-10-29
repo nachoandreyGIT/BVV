@@ -197,29 +197,153 @@ export default function SociosManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-white">Estado de Cuenta de Socios</h1>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-white">Estado de Cuenta de Socios</h1>
         <div className="flex gap-3">
-          <button onClick={handleChangeCuota} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors border border-slate-700">
+          <button onClick={handleChangeCuota} className="w-full sm:w-auto justify-center bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 transition-colors border border-slate-700 font-medium">
             <Settings size={18} /> Ajustar Cuota ($ {cuota})
           </button>
         </div>
       </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg flex items-center justify-between">
-        <div className="relative w-1/3">
+        <div className="relative w-full md:w-1/2 lg:w-1/3">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
           <input 
             type="text" 
             placeholder="Buscar por nombre, teléfono o email..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 text-white rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:border-blue-500 transition-colors"
+            className="w-full bg-slate-950 border border-slate-800 text-white rounded-lg pl-10 pr-4 py-2.5 focus:outline-none focus:border-blue-500 transition-colors"
           />
         </div>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-xl shadow-lg overflow-hidden">
+      {/* VISTA MÓVIL EN TARJETAS (< md) */}
+      <div className="md:hidden space-y-4">
+        {sociosFiltrados.map((socio) => (
+          <div key={socio.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-bold text-white text-base flex items-center gap-2 flex-wrap">
+                  <span>{socio.nombre}</span>
+                  {socio.is_bombero && (
+                    <span className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded border border-red-500/30 flex items-center gap-1">
+                      <ShieldAlert size={10} /> BOMBERO
+                    </span>
+                  )}
+                </div>
+                <div className="text-slate-300 text-sm mt-0.5 font-medium">{socio.telefono}</div>
+                {socio.email && <div className="text-slate-400 text-xs break-all">{socio.email}</div>}
+                <div className="text-slate-500 text-xs mt-1">
+                  Alta: {new Date(socio.created_at).toLocaleDateString()}
+                </div>
+              </div>
+              <span className={`shrink-0 px-2.5 py-1 rounded text-xs font-bold ${
+                socio.estado === 'activo' ? 'bg-green-500/20 text-green-400' : 
+                socio.estado === 'suspendido' ? 'bg-orange-500/20 text-orange-400' : 
+                'bg-red-500/20 text-red-400'
+              }`}>
+                {(socio.estado || 'activo').toUpperCase()}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between bg-slate-950/80 border border-slate-800/80 rounded-lg px-3 py-2">
+              <div>
+                {socio.mesesDeuda === 0 ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-500/20 text-green-400 border border-green-500/30">
+                    Al día
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30">
+                    Debe {socio.mesesDeuda} meses
+                  </span>
+                )}
+              </div>
+              <div className="text-sm text-slate-400">
+                Deuda: <strong className="text-white font-bold">${socio.montoDeuda}</strong>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-800 flex flex-wrap gap-2">
+              <button
+                onClick={() => handleTestPush(socio)}
+                className={`flex-1 min-w-[125px] justify-center px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 border text-xs font-bold ${
+                  socio.push_token
+                    ? 'bg-purple-600/20 text-purple-400 hover:bg-purple-600/40 border-purple-600/30'
+                    : 'bg-slate-800/40 text-slate-600 border-slate-700/40 cursor-not-allowed'
+                }`}
+              >
+                <BellRing size={14} /> Probar Push
+              </button>
+              <button
+                onClick={() => handleResetPassword(socio)}
+                className="flex-1 min-w-[100px] justify-center bg-blue-600/20 text-blue-400 hover:bg-blue-600/40 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 border border-blue-600/30 text-xs font-bold"
+              >
+                <KeyRound size={14} /> Clave
+              </button>
+              {socio.mesesDeuda > 0 && (
+                <button 
+                  onClick={() => handlePerdonarDeuda(socio)}
+                  className="flex-1 min-w-[110px] justify-center bg-yellow-600/20 text-yellow-500 hover:bg-yellow-600/40 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 border border-yellow-600/30 text-xs font-bold"
+                >
+                  <HeartHandshake size={14} /> Perdonar
+                </button>
+              )}
+              {socio.estado !== 'suspendido' && (
+                <button
+                  onClick={() => handleCambiarEstado(socio.id, 'suspendido', socio.nombre)}
+                  className="flex-1 min-w-[110px] justify-center bg-orange-600/20 text-orange-500 hover:bg-orange-600/40 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 border border-orange-600/30 text-xs font-bold"
+                >
+                  <Ban size={14} /> Suspender
+                </button>
+              )}
+              {socio.estado !== 'baja' && (
+                <button
+                  onClick={() => handleCambiarEstado(socio.id, 'baja', socio.nombre)}
+                  className="flex-1 min-w-[90px] justify-center bg-red-600/20 text-red-500 hover:bg-red-600/40 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 border border-red-600/30 text-xs font-bold"
+                >
+                  <Trash2 size={14} /> Baja
+                </button>
+              )}
+              {socio.estado !== 'activo' && (
+                <button
+                  onClick={() => handleCambiarEstado(socio.id, 'activo', socio.nombre)}
+                  className="flex-1 min-w-[110px] justify-center bg-green-600/20 text-green-500 hover:bg-green-600/40 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 border border-green-600/30 text-xs font-bold"
+                >
+                  <CheckCircle2 size={14} /> Reactivar
+                </button>
+              )}
+              <button 
+                onClick={() => handleToggleBombero(socio.id, socio.is_bombero, socio.nombre)} 
+                className={`flex-1 min-w-[135px] justify-center px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 border text-xs font-bold ${
+                  socio.is_bombero
+                    ? 'bg-slate-700/50 text-slate-400 hover:bg-slate-700 border-slate-600'
+                    : 'bg-red-600/20 text-red-400 hover:bg-red-600/40 border-red-600/30'
+                }`}
+              >
+                <ShieldAlert size={14} /> {socio.is_bombero ? 'Quitar Bombero' : 'Hacer Bombero'}
+              </button>
+              <button
+                onClick={() => handleEliminarSocio(socio.id, socio.nombre)}
+                className="bg-slate-800/80 text-slate-400 hover:text-red-500 px-3 py-2 rounded-lg border border-slate-700 transition-colors flex items-center justify-center"
+                title="Eliminar Registro Físico"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </div>
+        ))}
+        {sociosFiltrados.length === 0 && (
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center text-slate-500">
+            No se encontraron socios.
+          </div>
+        )}
+      </div>
+
+      {/* VISTA ESCRITORIO EN TABLA (>= md) */}
+      <div className="hidden md:block bg-slate-900 border border-slate-800 rounded-xl shadow-lg overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-950 border-b border-slate-800 text-slate-400 uppercase tracking-wider">
             <tr>
@@ -328,11 +452,12 @@ export default function SociosManagement() {
             ))}
             {socios.length === 0 && (
               <tr>
-                <td colSpan={5} className="text-center py-8 text-slate-500">No hay socios registrados</td>
+                <td colSpan={6} className="text-center py-8 text-slate-500">No hay socios registrados</td>
               </tr>
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

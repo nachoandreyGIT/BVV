@@ -125,16 +125,16 @@ export default function EditComunicado({ params }: { params: Promise<{ id: strin
         <ArrowLeft size={16} /> Volver a Avisos
       </button>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl">
-        <div className="flex justify-between items-start mb-6 border-b border-slate-800 pb-4">
-          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-8 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6 border-b border-slate-800 pb-4">
+          <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-3">
             <Edit2 className="text-blue-400" />
             Editar Aviso
           </h1>
           
           <button 
             onClick={handleDelete}
-            className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors"
+            className="w-full sm:w-auto justify-center bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors"
           >
             <Trash2 size={16} /> Eliminar
           </button>
