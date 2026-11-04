@@ -17,7 +17,6 @@ import {
 try {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
-      shouldShowAlert: true,
       shouldPlaySound: true,
       shouldSetBadge: false,
       shouldShowBanner: true,
@@ -418,7 +417,9 @@ export default function PanicScreen() {
           </TouchableOpacity>
           <View style={styles.menuDivider} />
           <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); router.push('/cuenta'); }}>
-            <Text style={styles.menuItemText}>💳 Pasarela de Pagos (Mi Cuenta)</Text>
+            <Text style={styles.menuItemText}>
+              {Platform.OS === 'ios' ? '📋 Estado de Socio (Mi Cuenta)' : '💳 Pasarela de Pagos (Mi Cuenta)'}
+            </Text>
           </TouchableOpacity>
           <View style={styles.menuDivider} />
           <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); router.push('/profile'); }}>

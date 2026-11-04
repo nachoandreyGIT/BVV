@@ -174,87 +174,98 @@ export default function PaymentScreen() {
           </View>
         </View>
 
-        {/* Cuadro de Aporte Comunitario Voluntario (Asociarse) */}
-        <View style={styles.donationToggleCard}>
-          <Text style={styles.donationToggleTitle}>🤝 Apoyo Solidario al Cuartel (Opcional)</Text>
-          <Text style={styles.donationToggleDesc}>
-            Bomberos Voluntarios es una entidad sin fines de lucro. Los vecinos que lo deseen pueden asociarse aportando una cuota social mensual voluntaria para ayudar con el combustible de las autobombas y el equipamiento de protección.
-          </Text>
+        {/* Cuadro de Aporte Comunitario Voluntario (Asociarse) - Oculto en iOS por directriz 3.1.1 / 3.2.1 de App Store */}
+        {Platform.OS !== 'ios' ? (
+          <View style={styles.donationToggleCard}>
+            <Text style={styles.donationToggleTitle}>🤝 Apoyo Solidario al Cuartel (Opcional)</Text>
+            <Text style={styles.donationToggleDesc}>
+              Bomberos Voluntarios es una entidad sin fines de lucro. Los vecinos que lo deseen pueden asociarse aportando una cuota social mensual voluntaria para ayudar con el combustible de las autobombas y el equipamiento de protección.
+            </Text>
 
-          {!showDonationSection ? (
-            <TouchableOpacity 
-              style={styles.showDonationButton} 
-              onPress={() => setShowDonationSection(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.showDonationButtonText}>💳 Quiero colaborar o asociarme con MercadoPago</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.donationOptionsContainer}>
-              
-              {/* Opción 1: Cuota Mensual */}
-              <View style={styles.optionBox}>
-                <Text style={styles.optionBoxTitle}>Cuota Social Mensual</Text>
-                <Text style={styles.optionBoxDesc}>
-                  Aporte mensual automático con cualquier tarjeta. Podés pausar o cancelar cuando quieras.
-                </Text>
-                <Text style={styles.priceBadge}>Valor sugerido: $2.000 / mes</Text>
-                <TouchableOpacity 
-                  style={styles.mpButton} 
-                  onPress={handleSubscription}
-                  disabled={isProcessing}
-                >
-                  <Text style={styles.mpButtonText}>
-                    {isProcessing ? 'Conectando...' : 'Suscribirse con MercadoPago'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.orDividerText}>— O —</Text>
-
-              {/* Opción 2: Donación Única */}
-              <View style={styles.optionBox}>
-                <Text style={styles.optionBoxTitle}>Donación Única Libre</Text>
-                <Text style={styles.optionBoxDesc}>
-                  Ingresá el monto con el que deseás colaborar por única vez.
-                </Text>
+            {!showDonationSection ? (
+              <TouchableOpacity 
+                style={styles.showDonationButton} 
+                onPress={() => setShowDonationSection(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.showDonationButtonText}>💳 Quiero colaborar o asociarme con MercadoPago</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.donationOptionsContainer}>
                 
-                <View style={styles.inputContainer}>
-                  <Text style={styles.currencySymbol}>$</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Monto a donar"
-                    placeholderTextColor="#64748b"
-                    keyboardType="numeric"
-                    value={donationAmount}
-                    onChangeText={setDonationAmount}
-                  />
+                {/* Opción 1: Cuota Mensual */}
+                <View style={styles.optionBox}>
+                  <Text style={styles.optionBoxTitle}>Cuota Social Mensual</Text>
+                  <Text style={styles.optionBoxDesc}>
+                    Aporte mensual automático con cualquier tarjeta. Podés pausar o cancelar cuando quieras.
+                  </Text>
+                  <Text style={styles.priceBadge}>Valor sugerido: $2.000 / mes</Text>
+                  <TouchableOpacity 
+                    style={styles.mpButton} 
+                    onPress={handleSubscription}
+                    disabled={isProcessing}
+                  >
+                    <Text style={styles.mpButtonText}>
+                      {isProcessing ? 'Conectando...' : 'Suscribirse con MercadoPago'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.orDividerText}>— O —</Text>
+
+                {/* Opción 2: Donación Única */}
+                <View style={styles.optionBox}>
+                  <Text style={styles.optionBoxTitle}>Donación Única Libre</Text>
+                  <Text style={styles.optionBoxDesc}>
+                    Ingresá el monto con el que deseás colaborar por única vez.
+                  </Text>
+                  
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.currencySymbol}>$</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Monto a donar"
+                      placeholderTextColor="#64748b"
+                      keyboardType="numeric"
+                      value={donationAmount}
+                      onChangeText={setDonationAmount}
+                    />
+                  </View>
+
+                  <TouchableOpacity 
+                    style={styles.mpOutlineButton} 
+                    onPress={handleDonation}
+                    disabled={isProcessing}
+                  >
+                    <Text style={styles.mpOutlineButtonText}>
+                      {isProcessing ? 'Conectando...' : 'Donar con MercadoPago'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
 
                 <TouchableOpacity 
-                  style={styles.mpOutlineButton} 
-                  onPress={handleDonation}
-                  disabled={isProcessing}
+                  style={styles.hideDonationButton} 
+                  onPress={() => setShowDonationSection(false)}
                 >
-                  <Text style={styles.mpOutlineButtonText}>
-                    {isProcessing ? 'Conectando...' : 'Donar con MercadoPago'}
-                  </Text>
+                  <Text style={styles.hideDonationButtonText}>Ocultar opciones de pago</Text>
                 </TouchableOpacity>
               </View>
-
-              <TouchableOpacity 
-                style={styles.hideDonationButton} 
-                onPress={() => setShowDonationSection(false)}
-              >
-                <Text style={styles.hideDonationButtonText}>Ocultar opciones de pago</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+            )}
+          </View>
+        ) : (
+          <View style={styles.donationToggleCard}>
+            <Text style={styles.donationToggleTitle}>🏛️ Asociación de Bomberos Voluntarios de Verónica</Text>
+            <Text style={styles.donationToggleDesc}>
+              Entidad de bien público sin fines de lucro al servicio de los vecinos de Verónica y el Partido de Punta Indio. La gestión administrativa del padrón de socios se realiza directamente ante la secretaría de la institución.
+            </Text>
+          </View>
+        )}
 
         {/* Botón Inferior de Cierre */}
         <TouchableOpacity style={styles.bottomFreeLink} onPress={goToHomeFree}>
-          <Text style={styles.bottomFreeLinkText}>← Continuar a la pantalla principal sin pagar</Text>
+          <Text style={styles.bottomFreeLinkText}>
+            {Platform.OS === 'ios' ? '← Ir a la pantalla principal de emergencias' : '← Continuar a la pantalla principal sin pagar'}
+          </Text>
         </TouchableOpacity>
 
       </ScrollView>

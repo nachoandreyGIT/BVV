@@ -1,7 +1,22 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { supabase } from './supabase';
+
+/**
+ * Verifica si la app corre como binario compilado independiente (.apk / .ipa)
+ * donde los archivos .wav personalizados ya fueron inyectados por el plugin nativo.
+ * En Expo Go (storeClient) usa el sonido 'default' del sistema para evitar errores de archivo no encontrado.
+ */
+function canUseCustomNativeSounds(): boolean {
+  const env = Constants.executionEnvironment;
+  const ownership = (Constants as any).appOwnership;
+  if (env === 'storeClient' || ownership === 'expo') {
+    return false;
+  }
+  return true;
+}
 
 export interface AlertSoundOption {
   id: string;
@@ -193,11 +208,12 @@ export async function triggerLocalAlertNotification(
   try {
     await setupNotificationChannels();
     const option = await getSelectedSoundOption();
+    const resolvedSound = canUseCustomNativeSounds() ? (option.soundFile || 'default') : 'default';
     await Notifications.scheduleNotificationAsync({
       content: {
         title,
         body,
-        sound: option.soundFile || 'default',
+        sound: resolvedSound,
         data: { channelId: option.channelId, ...extraData },
       },
       trigger: (Platform.OS === 'android' ? { channelId: option.channelId } : null) as any,
@@ -218,11 +234,12 @@ export async function playSampleSound(soundId: string): Promise<void> {
 
   try {
     await setupNotificationChannels();
+    const resolvedSound = canUseCustomNativeSounds() ? (option.soundFile || 'default') : 'default';
     const notifId = await Notifications.scheduleNotificationAsync({
       content: {
         title: `${option.icono} Prueba: ${option.nombre}`,
         body: option.subtitulo,
-        sound: option.soundFile || 'default',
+        sound: resolvedSound,
         data: { channelId: option.channelId, isPreview: true },
       },
       trigger: (Platform.OS === 'android' ? { channelId: option.channelId } : null) as any,

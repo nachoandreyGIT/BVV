@@ -8,7 +8,14 @@
     "scheme": "mobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "bundleIdentifier": "com.bvv.bomberos",
+      "supportsTablet": false,
+      "icon": "./assets/expo.icon",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Bomberos Voluntarios de Verónica necesita acceder a tu ubicación GPS exacta para enviar las dotaciones de rescate e incendio al lugar preciso de tu emergencia cuando presionas el botón de auxilio.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Bomberos Voluntarios de Verónica necesita acceder a tu ubicación GPS exacta para enviar las dotaciones de rescate e incendio al lugar preciso de tu emergencia cuando presionas el botón de auxilio.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.bvv.bomberos",
@@ -34,7 +41,13 @@
     },
     "plugins": [
       "expo-router",
-      "expo-location",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Bomberos Voluntarios de Verónica necesita acceder a tu ubicación GPS exacta para enviar las dotaciones de rescate e incendio al lugar preciso de tu emergencia cuando presionas el botón de auxilio.",
+          "locationWhenInUsePermission": "Bomberos Voluntarios de Verónica necesita acceder a tu ubicación GPS exacta para enviar las dotaciones de rescate e incendio al lugar preciso de tu emergencia cuando presionas el botón de auxilio."
+        }
+      ],
       [
         "expo-notifications",
         {

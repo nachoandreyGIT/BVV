@@ -136,7 +136,7 @@ export default function CuentaScreen() {
       <LinearGradient colors={['#0f172a', '#000000']} style={StyleSheet.absoluteFill} />
       
       <View style={styles.header}>
-        <Text style={styles.title}>Mi Cuenta</Text>
+        <Text style={styles.title}>{Platform.OS === 'ios' ? 'Estado de Socio' : 'Mi Cuenta'}</Text>
         <TouchableOpacity style={styles.backButton} onPress={() => router.push('/')}>
           <Text style={styles.backButtonText}>← Volver</Text>
         </TouchableOpacity>
@@ -149,43 +149,55 @@ export default function CuentaScreen() {
           <View style={styles.warningAlert}>
             <Text style={styles.warningTitle}>🔔 Tienes {mesesDeuda} mes(es) pendiente(s)</Text>
             <Text style={styles.warningText}>
-              El uso de la aplicación y la atención a tus emergencias está 100% garantizada siempre, sin importar tus pagos. 
-              Sin embargo, tu aporte mensual es vital para el cuartel. ¡Gracias por apoyarnos!
+              El uso de la aplicación y la atención a tus emergencias está 100% garantizada siempre, sin importar el estado administrativo de tu ficha de socio.
             </Text>
-            <TouchableOpacity style={styles.payDebtButton} onPress={handlePagarDeuda} disabled={isProcessing}>
-              <Text style={styles.payDebtButtonText}>{isProcessing ? 'Procesando...' : `Ponerse al Día ($${deudaTotal})`}</Text>
-            </TouchableOpacity>
+            {Platform.OS !== 'ios' && (
+              <TouchableOpacity style={styles.payDebtButton} onPress={handlePagarDeuda} disabled={isProcessing}>
+                <Text style={styles.payDebtButtonText}>{isProcessing ? 'Procesando...' : `Ponerse al Día ($${deudaTotal})`}</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           <View style={styles.successAlert}>
             <Text style={styles.successTitle}>✅ ¡Estás al día!</Text>
-            <Text style={styles.successText}>Gracias por tu aporte continuo a Bomberos Voluntarios.</Text>
+            <Text style={styles.successText}>Gracias por tu apoyo a Bomberos Voluntarios de Verónica.</Text>
           </View>
         )}
 
-        {/* Tarjeta de Donación Libre */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Hacer una Donación Única</Text>
-          <Text style={styles.cardDescription}>
-            Si deseas colaborar de forma extraordinaria con equipamiento y gastos operativos.
-          </Text>
-          
-          <View style={styles.inputContainer}>
-            <Text style={styles.currencySymbol}>$</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="0.00"
-              placeholderTextColor="#64748b"
-              keyboardType="numeric"
-              value={donationAmount}
-              onChangeText={setDonationAmount}
-            />
-          </View>
+        {/* Tarjeta de Donación Libre (Android/Web) o Información Administrativa (iOS) */}
+        {Platform.OS !== 'ios' ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Hacer una Donación Única</Text>
+            <Text style={styles.cardDescription}>
+              Si deseas colaborar de forma extraordinaria con equipamiento y gastos operativos.
+            </Text>
+            
+            <View style={styles.inputContainer}>
+              <Text style={styles.currencySymbol}>$</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="0.00"
+                placeholderTextColor="#64748b"
+                keyboardType="numeric"
+                value={donationAmount}
+                onChangeText={setDonationAmount}
+              />
+            </View>
 
-          <TouchableOpacity style={styles.mpButton} onPress={handleDonacion} disabled={isProcessing}>
-            <Text style={styles.mpButtonText}>{isProcessing ? 'Procesando...' : 'Donar vía MercadoPago'}</Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity style={styles.mpButton} onPress={handleDonacion} disabled={isProcessing}>
+              <Text style={styles.mpButtonText}>{isProcessing ? 'Procesando...' : 'Donar vía MercadoPago'}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Información del Padrón de Socios</Text>
+            <Text style={styles.cardDescription}>
+              Esta sección es de carácter exclusivamente informativo sobre el estado administrativo de tu ficha en el padrón de la Asociación de Bomberos Voluntarios de Verónica.
+              {'\n\n'}
+              La asistencia ante emergencias mediante el botón SOS es un servicio público 100% gratuito para toda la comunidad las 24 horas. Cualquier consulta o gestión administrativa sobre el padrón de socios se realiza directamente ante la secretaría de la institución.
+            </Text>
+          </View>
+        )}
 
       </ScrollView>
     </View>

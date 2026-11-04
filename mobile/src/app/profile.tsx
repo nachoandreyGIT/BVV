@@ -18,6 +18,8 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedSound, setSelectedSound] = useState<string>('sirena_cuartel');
   const [playingSoundId, setPlayingSoundId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -78,6 +80,43 @@ export default function ProfileScreen() {
     await stopSampleSound();
     await AsyncStorage.removeItem('socioId');
     router.replace('/register');
+  };
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      await stopSampleSound();
+      const socioId = await AsyncStorage.getItem('socioId');
+      if (socioId) {
+        // Eliminar registros vinculados primero por si existen restricciones de clave foránea
+        await supabase.from('alertas').delete().eq('socio_id', socioId);
+        await supabase.from('pagos').delete().eq('socio_id', socioId);
+        const { error } = await supabase.from('socios').delete().eq('id', socioId);
+        if (error) {
+          // Fallback: anonimizar y dar de baja el registro si la base de datos impide borrado físico
+          await supabase
+            .from('socios')
+            .update({
+              nombre: 'Cuenta Eliminada',
+              telefono: `baja_${socioId}_${Date.now()}`,
+              email: '',
+              direccion: '',
+              vehiculo: '',
+              push_token: null,
+              estado: 'baja',
+            })
+            .eq('id', socioId);
+        }
+      }
+      await AsyncStorage.removeItem('socioId');
+      setShowDeleteConfirm(false);
+      router.replace('/register');
+    } catch (error) {
+      console.error('Error eliminando cuenta:', error);
+      alert('No se pudo completar la eliminación de la cuenta. Intenta nuevamente.');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   if (loading) {
@@ -227,6 +266,41 @@ export default function ProfileScreen() {
           <Text style={{ fontSize: 20, marginRight: 10 }}>🚪</Text>
           <Text style={styles.logoutText}>Cerrar Sesión</Text>
         </TouchableOpacity>
+
+        {/* Eliminación de Cuenta (Requisito App Store 5.1.1(v) y Google Play Data Safety) */}
+        {!showDeleteConfirm ? (
+          <TouchableOpacity
+            style={styles.deleteAccountTrigger}
+            onPress={() => setShowDeleteConfirm(true)}
+          >
+            <Text style={styles.deleteAccountTriggerText}>🗑️ Eliminar mi cuenta y datos personales</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.deleteConfirmCard}>
+            <Text style={styles.deleteConfirmTitle}>⚠️ ¿Confirmás eliminar tu cuenta?</Text>
+            <Text style={styles.deleteConfirmDesc}>
+              Esta acción eliminará de forma permanente tu cuenta, tus datos de contacto y tu dirección de logística registrados en la aplicación. Para volver a utilizar el botón SOS deberás registrarte nuevamente.
+            </Text>
+            <View style={styles.deleteConfirmActions}>
+              <TouchableOpacity
+                style={styles.deleteCancelBtn}
+                onPress={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+              >
+                <Text style={styles.deleteCancelBtnText}>Conservar cuenta</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deleteConfirmBtn}
+                onPress={handleDeleteAccount}
+                disabled={isDeleting}
+              >
+                <Text style={styles.deleteConfirmBtnText}>
+                  {isDeleting ? 'Eliminando...' : 'Sí, eliminar cuenta'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         <TouchableOpacity
           style={{ marginTop: 18, padding: 10 }}
@@ -473,5 +547,74 @@ const styles = StyleSheet.create({
     color: '#cbd5e1',
     fontSize: 11,
     lineHeight: 16,
+  },
+  deleteAccountTrigger: {
+    marginTop: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.25)',
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    width: '100%',
+    maxWidth: 500,
+    alignItems: 'center',
+  },
+  deleteAccountTriggerText: {
+    color: '#94a3b8',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  deleteConfirmCard: {
+    marginTop: 16,
+    width: '100%',
+    maxWidth: 500,
+    backgroundColor: 'rgba(127, 29, 29, 0.25)',
+    borderWidth: 1.5,
+    borderColor: '#ef4444',
+    borderRadius: 16,
+    padding: 18,
+  },
+  deleteConfirmTitle: {
+    color: '#fca5a5',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  deleteConfirmDesc: {
+    color: '#e2e8f0',
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 16,
+  },
+  deleteConfirmActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  deleteCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+  },
+  deleteCancelBtnText: {
+    color: '#f8fafc',
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  deleteConfirmBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#dc2626',
+    alignItems: 'center',
+  },
+  deleteConfirmBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: 'bold',
   },
 });

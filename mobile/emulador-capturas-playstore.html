@@ -628,7 +628,19 @@
       <div class="logo-badge">🚨</div>
       <div>
         <h1>BVV Emergencias</h1>
-        <p>Emulador & Capturas Google Play</p>
+        <p id="store-subtitle">Emulador & Capturas Tiendas</p>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">0. Tienda Destino (Políticas)</div>
+      <div class="format-row">
+        <button class="format-btn active" id="plat-android" onclick="setStorePlatform('android')">
+          🤖 Google Play<br><small style="color:#94a3b8">Con MercadoPago</small>
+        </button>
+        <button class="format-btn" id="plat-ios" onclick="setStorePlatform('ios')">
+          🍎 App Store (iOS)<br><small style="color:#94a3b8">Sin Pasarela Externa</small>
+        </button>
       </div>
     </div>
 
@@ -641,7 +653,7 @@
         📦 Descargar las 7 capturas juntas
       </button>
       <p id="status-msg" style="font-size: 11px; color: #cbd5e1; line-height: 1.35; text-align: center;">
-        Se descargarán en tu carpeta <b>Descargas</b> listas para Play Console.
+        Se descargarán en tu carpeta <b>Descargas</b> listas para subir a la tienda.
       </p>
     </div>
 
@@ -665,7 +677,7 @@
           <span>5. Centro de Avisos Oficiales</span>
         </button>
         <button class="screen-btn" onclick="setScreen(6)" id="btn-s6">
-          <span>6. Mi Cuenta y Donaciones</span>
+          <span id="label-s6">6. Mi Cuenta y Donaciones</span>
         </button>
         <button class="screen-btn" onclick="setScreen(7)" id="btn-s7">
           <span>7. Mi Perfil y Sirenas de Alerta</span>
@@ -701,10 +713,10 @@
     </div>
 
     <div class="device-frame" id="device-frame">
-      <!-- Barra de estado Android -->
+      <!-- Barra de estado superior -->
       <div class="android-status-bar" id="status-bar">
-        <span>09:41</span>
-        <div class="status-icons">
+        <span id="status-time" style="font-weight:700;">09:41</span>
+        <div class="status-icons" id="status-icons">
           <span>📍 GPS</span>
           <span>5G</span>
           <span>📶</span>
@@ -715,9 +727,9 @@
       <!-- Pantalla Renderizada -->
       <div class="app-screen" id="app-screen"></div>
 
-      <!-- Barra inferior Android -->
+      <!-- Barra inferior -->
       <div class="android-nav-bar">
-        <div class="nav-pill"></div>
+        <div class="nav-pill" id="nav-pill"></div>
       </div>
     </div>
   </main>
@@ -725,8 +737,37 @@
   <script>
     let currentScreen = 1;
     let menuOpen = false;
+    let storePlatform = 'android'; // 'android' | 'ios'
+
+    function setStorePlatform(plat) {
+      storePlatform = plat;
+      document.getElementById('plat-android').classList.toggle('active', plat === 'android');
+      document.getElementById('plat-ios').classList.toggle('active', plat === 'ios');
+
+      const statusIcons = document.getElementById('status-icons');
+      const navPill = document.getElementById('nav-pill');
+      const labelS6 = document.getElementById('label-s6');
+
+      if (plat === 'ios') {
+        statusIcons.innerHTML = '<span>•••</span><span>5G</span><span>🔋</span>';
+        navPill.style.width = '134px';
+        navPill.style.height = '5px';
+        navPill.style.background = 'rgba(255, 255, 255, 0.65)';
+        if (labelS6) labelS6.textContent = '6. Estado de Socio (Sin Pagos)';
+      } else {
+        statusIcons.innerHTML = '<span>📍 GPS</span><span>5G</span><span>📶</span><span>🔋 100%</span>';
+        navPill.style.width = '110px';
+        navPill.style.height = '4px';
+        navPill.style.background = 'rgba(255, 255, 255, 0.35)';
+        if (labelS6) labelS6.textContent = '6. Mi Cuenta y Donaciones';
+      }
+
+      setScreen(currentScreen);
+    }
 
     function getScreenHTML(screenId) {
+      const isIOS = storePlatform === 'ios';
+
       // PANTALLA 1 y 2: INICIO SOS (Botón Único)
       if (screenId === 1 || screenId === 2) {
         const showMenu = screenId === 2 || menuOpen;
@@ -745,7 +786,7 @@
             <div class="menu-divider"></div>
             <div class="menu-item" onclick="setScreen(5)">🔔 Centro de Avisos</div>
             <div class="menu-divider"></div>
-            <div class="menu-item" onclick="setScreen(6)">💳 Pasarela de Pagos (Mi Cuenta)</div>
+            <div class="menu-item" onclick="setScreen(6)">${isIOS ? '📋 Estado de Socio (Mi Cuenta)' : '💳 Pasarela de Pagos (Mi Cuenta)'}</div>
             <div class="menu-divider"></div>
             <div class="menu-item" onclick="setScreen(7)">👤 Mi Perfil</div>
           </div>
@@ -857,8 +898,34 @@
         `;
       }
 
-      // PANTALLA 6: MI CUENTA / PASARELA DE PAGOS
+      // PANTALLA 6: MI CUENTA / ESTADO DE SOCIO
       if (screenId === 6) {
+        if (isIOS) {
+          return `
+            <div class="sub-header">
+              <span class="back-btn" onclick="setScreen(1)">← Volver</span>
+              <div class="bvv-title" style="font-size:21px;">Estado de Socio</div>
+            </div>
+            <div class="scroll-body">
+              <div class="success-box">
+                <div style="color:#10b981; font-size:18px; font-weight:800; margin-bottom:6px;">✅ ¡Estás al día!</div>
+                <div style="color:#a7f3d0; font-size:13px; line-height:1.4;">
+                  Gracias por tu apoyo a Bomberos Voluntarios de Verónica.
+                </div>
+              </div>
+
+              <div class="app-card" style="padding:20px;">
+                <div style="color:#fff; font-size:18px; font-weight:700; margin-bottom:10px;">Información del Padrón de Socios</div>
+                <div style="color:#cbd5e1; font-size:13px; line-height:1.55;">
+                  Esta sección es de carácter exclusivamente informativo sobre el estado administrativo de tu ficha en el padrón de la Asociación de Bomberos Voluntarios de Verónica.
+                  <br><br>
+                  La asistencia ante emergencias mediante el botón SOS es un servicio público 100% gratuito para toda la comunidad las 24 horas. Cualquier consulta o gestión administrativa sobre el padrón de socios se realiza directamente ante la secretaría de la institución.
+                </div>
+              </div>
+            </div>
+          `;
+        }
+
         return `
           <div class="sub-header">
             <span class="back-btn" onclick="setScreen(1)">← Volver</span>
@@ -896,79 +963,73 @@
       // PANTALLA 7: MI PERFIL Y SONIDOS DE ALERTA
       if (screenId === 7) {
         return `
-          <div class="scroll-body" style="padding-top:16px;">
-            <div style="text-align:center; margin-bottom:6px;">
-              <div style="width:68px; height:68px; border-radius:50%; background:rgba(255,255,255,0.1); display:inline-flex; align-items:center; justify-content:center; font-size:28px; margin-bottom:8px;">👤</div>
-              <div class="bvv-title" style="font-size:23px;">Mi Perfil</div>
-              <div style="color:#94a3b8; font-size:12px; margin-top:2px;">Bomberos Voluntarios de Verónica</div>
-            </div>
-
-            <div class="app-card">
-              <div style="color:#cbd5e1; font-size:15px; font-weight:700; padding-bottom:6px; margin-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.1);">Datos Personales</div>
-              <div style="display:flex; align-items:center; margin-bottom:10px;">
-                <span style="width:28px; font-size:17px;">👤</span>
+          <div class="sub-header" style="padding: 14px 20px;">
+            <span class="back-btn" style="top:15px;" onclick="setScreen(1)">← Volver</span>
+            <div class="bvv-title" style="font-size:19px;">Mi Perfil</div>
+          </div>
+          <div class="scroll-body" style="padding-top:12px; gap:10px;">
+            <div class="app-card" style="padding:13px;">
+              <div style="color:#cbd5e1; font-size:14px; font-weight:700; padding-bottom:5px; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.1);">Datos Personales y Logística</div>
+              <div style="display:flex; align-items:center; margin-bottom:8px;">
+                <span style="width:26px; font-size:16px;">👤</span>
                 <div>
-                  <div style="color:#64748b; font-size:11px;">Nombre Completo</div>
-                  <div style="color:#fff; font-size:14px; font-weight:600;">Juan Pérez</div>
+                  <div style="color:#64748b; font-size:10px;">Nombre Completo</div>
+                  <div style="color:#fff; font-size:13px; font-weight:600;">Juan Pérez</div>
                 </div>
               </div>
-              <div style="display:flex; align-items:center; margin-bottom:10px;">
-                <span style="width:28px; font-size:17px;">📱</span>
+              <div style="display:flex; align-items:center; margin-bottom:8px;">
+                <span style="width:26px; font-size:16px;">📱</span>
                 <div>
-                  <div style="color:#64748b; font-size:11px;">Teléfono</div>
-                  <div style="color:#fff; font-size:14px; font-weight:600;">2221 45-6789</div>
+                  <div style="color:#64748b; font-size:10px;">Teléfono</div>
+                  <div style="color:#fff; font-size:13px; font-weight:600;">2221 45-6789</div>
                 </div>
               </div>
               <div style="display:flex; align-items:center;">
-                <span style="width:28px; font-size:17px;">📍</span>
+                <span style="width:26px; font-size:16px;">📍</span>
                 <div>
-                  <div style="color:#64748b; font-size:11px;">Dirección de Vivienda</div>
-                  <div style="color:#fff; font-size:14px; font-weight:600;">Diag. 64 N° 1240, Verónica</div>
+                  <div style="color:#64748b; font-size:10px;">Dirección de Vivienda</div>
+                  <div style="color:#fff; font-size:13px; font-weight:600;">Diag. 64 N° 1240, Verónica</div>
                 </div>
               </div>
             </div>
 
-            <div class="app-card">
-              <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
-                <span style="font-size:20px;">🔊</span>
+            <div class="app-card" style="padding:13px;">
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+                <span style="font-size:18px;">🔊</span>
                 <div>
-                  <div style="color:#fff; font-size:14px; font-weight:700;">Sonido de Alerta de Emergencia</div>
-                  <div style="color:#94a3b8; font-size:11px;">Tono que sonará ante siniestros e intervenciones.</div>
+                  <div style="color:#fff; font-size:13px; font-weight:700;">Sonido de Alerta de Emergencia</div>
+                  <div style="color:#94a3b8; font-size:10px;">Tono que sonará ante siniestros e intervenciones.</div>
                 </div>
               </div>
 
-              <div class="sound-option selected">
+              <div class="sound-option selected" style="padding:8px 10px;">
                 <div style="display:flex; align-items:center;">
                   <div class="radio-circle"><div class="radio-dot"></div></div>
                   <div>
-                    <div style="color:#fff; font-size:13px; font-weight:700;">🚨 Sirena de Cuartel Principal</div>
+                    <div style="color:#fff; font-size:12px; font-weight:700;">🚨 Sirena de Cuartel Principal</div>
                     <div style="color:#94a3b8; font-size:10px;">Bitonal penetrante de autobomba</div>
                   </div>
                 </div>
                 <div class="preview-pill">▶️ Probar</div>
               </div>
 
-              <div class="sound-option">
+              <div class="sound-option" style="padding:8px 10px;">
                 <div style="display:flex; align-items:center;">
                   <div class="radio-circle"></div>
                   <div>
-                    <div style="color:#e2e8f0; font-size:13px; font-weight:600;">⚠️ Alarma Táctica de Evacuación</div>
+                    <div style="color:#e2e8f0; font-size:12px; font-weight:600;">⚠️ Alarma Táctica de Evacuación</div>
                     <div style="color:#94a3b8; font-size:10px;">Tono pulsante rápido de alta frecuencia</div>
                   </div>
                 </div>
                 <div class="preview-pill">▶️ Probar</div>
               </div>
+            </div>
 
-              <div class="sound-option">
-                <div style="display:flex; align-items:center;">
-                  <div class="radio-circle"></div>
-                  <div>
-                    <div style="color:#e2e8f0; font-size:13px; font-weight:600;">📢 Corneta Pesada de Rescate</div>
-                    <div style="color:#94a3b8; font-size:10px;">Doble bocinazo neumático pesado</div>
-                  </div>
-                </div>
-                <div class="preview-pill">▶️ Probar</div>
-              </div>
+            <div style="background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); border-radius:10px; padding:10px; text-align:center; color:#fca5a5; font-size:13px; font-weight:700;">
+              🚪 Cerrar Sesión
+            </div>
+            <div style="background:rgba(15,23,42,0.6); border:1px solid rgba(148,163,184,0.25); border-radius:10px; padding:9px; text-align:center; color:#94a3b8; font-size:11px; font-weight:600;">
+              🗑️ Eliminar mi cuenta y datos personales
             </div>
           </div>
         `;
@@ -1012,6 +1073,9 @@
     if (params.get('capture') === '1') {
       document.body.classList.add('capture-mode');
     }
+    if (params.get('platform') === 'ios') {
+      setStorePlatform('ios');
+    }
     const initialScreen = parseInt(params.get('screen') || '1', 10);
     setScreen(initialScreen);
 
@@ -1021,7 +1085,7 @@
       3: '03_cuenta_regresiva_emergencia',
       4: '04_ayuda_en_camino',
       5: '05_centro_de_avisos',
-      6: '06_mi_cuenta_donaciones',
+      6: '06_mi_cuenta_estado_socio',
       7: '07_mi_perfil_sonidos_alerta'
     };
 
@@ -1053,8 +1117,9 @@
       frame.style.borderRadius = prevRadius;
       frame.style.boxShadow = prevShadow;
 
+      const platSuffix = storePlatform === 'ios' ? '_ios' : '_android';
       const link = document.createElement('a');
-      link.download = filename + (isTablet ? '_tablet' : '_telefono') + '.png';
+      link.download = filename + platSuffix + (isTablet ? '_tablet' : '_telefono') + '.png';
       link.href = canvas.toDataURL('image/png');
       link.click();
 
