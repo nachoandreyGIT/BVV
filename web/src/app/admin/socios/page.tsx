@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Search, HeartHandshake, DollarSign, Settings, Ban, Trash2, CheckCircle2, ShieldAlert, KeyRound, BellRing } from 'lucide-react';
+import { Search, HeartHandshake, DollarSign, Settings, Ban, Trash2, CheckCircle2, ShieldAlert, KeyRound, BellRing, UserCheck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export default function SociosManagement() {
@@ -8,6 +8,7 @@ export default function SociosManagement() {
   const [cuota, setCuota] = useState(1500);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterMembresia, setFilterMembresia] = useState<'todos' | 'aportantes' | 'gratuitos' | 'deuda'>('todos');
 
   useEffect(() => {
     fetchData();
@@ -16,7 +17,8 @@ export default function SociosManagement() {
   const fetchData = async () => {
     // Traer configuracion cuota
     const { data: config } = await supabase.from('configuraciones').select('valor').eq('clave', 'cuota_mensual').single();
-    if (config) setCuota(Number(config.valor));
+    const cuotaActual = config ? Number(config.valor) : 1500;
+    if (config) setCuota(cuotaActual);
 
     // Traer socios
     const { data: sociosData } = await supabase.from('socios').select('*').order('created_at', { ascending: false });
@@ -25,24 +27,31 @@ export default function SociosManagement() {
     const { data: pagosData } = await supabase.from('pagos').select('*').in('estado', ['aprobado', 'perdonado']);
 
     if (sociosData) {
-      // Calcular deuda para cada socio
+      // Calcular deuda ÚNICAMENTE para socios adheridos voluntariamente a cuota mensual
       const hoy = new Date();
       const sociosConDeuda = sociosData.map(socio => {
-        const registro = new Date(socio.created_at);
-        const diffAños = hoy.getFullYear() - registro.getFullYear();
-        const diffMeses = hoy.getMonth() - registro.getMonth();
-        let totalMesesHistoricos = diffAños * 12 + diffMeses + 1;
+        const esAportante = Boolean(socio.es_socio_aportante);
+        let deudaMeses = 0;
 
-        const pagosSocio = pagosData?.filter(p => p.socio_id === socio.id && p.tipo === 'cuota') || [];
-        const mesesPagados = pagosSocio.length;
-        
-        let deudaMeses = totalMesesHistoricos - mesesPagados;
-        if (deudaMeses < 0) deudaMeses = 0;
+        if (esAportante) {
+          const fechaBase = socio.fecha_adhesion_socio
+            ? new Date(socio.fecha_adhesion_socio)
+            : new Date(socio.created_at);
+          const diffAños = hoy.getFullYear() - fechaBase.getFullYear();
+          const diffMeses = hoy.getMonth() - fechaBase.getMonth();
+          const totalMesesHistoricos = Math.max(1, diffAños * 12 + diffMeses + 1);
+
+          const pagosSocio = pagosData?.filter(p => p.socio_id === socio.id && p.tipo === 'cuota') || [];
+          const mesesPagados = pagosSocio.length;
+
+          deudaMeses = Math.max(0, totalMesesHistoricos - mesesPagados);
+        }
 
         return {
           ...socio,
+          esAportante,
           mesesDeuda: deudaMeses,
-          montoDeuda: deudaMeses * (config ? Number(config.valor) : 1500)
+          montoDeuda: deudaMeses * cuotaActual
         };
       });
 
@@ -183,9 +192,37 @@ export default function SociosManagement() {
     }
   };
 
-  if (loading) return <div className="text-white p-8">Calculando deudas históricas...</div>;
+  const handleToggleAportante = async (socio: any) => {
+    const actualmenteAportante = Boolean(socio.esAportante);
+    const mensaje = actualmenteAportante
+      ? `¿Deseas quitar la cuota mensual a ${socio.nombre}? Pasará a figurar como Vecino (Gratuito) y dejará de acumular deuda.`
+      : `¿Deseas marcar a ${socio.nombre} como SOCIO APORTANTE con cuota mensual a partir de hoy?`;
+
+    if (!window.confirm(mensaje)) return;
+
+    const { error } = await supabase
+      .from('socios')
+      .update({
+        es_socio_aportante: !actualmenteAportante,
+        fecha_adhesion_socio: !actualmenteAportante ? new Date().toISOString() : null,
+      })
+      .eq('id', socio.id);
+
+    if (error) {
+      alert('Error al actualizar membresía (verifica que existan las columnas es_socio_aportante y fecha_adhesion_socio en Supabase): ' + error.message);
+      return;
+    }
+
+    fetchData();
+  };
+
+  if (loading) return <div className="text-white p-8">Cargando padrón de vecinos y socios...</div>;
 
   const sociosFiltrados = socios.filter((s) => {
+    if (filterMembresia === 'aportantes' && !s.esAportante) return false;
+    if (filterMembresia === 'gratuitos' && s.esAportante) return false;
+    if (filterMembresia === 'deuda' && (!s.esAportante || s.mesesDeuda === 0)) return false;
+
     if (!searchTerm.trim()) return true;
     const q = searchTerm.toLowerCase();
     return (
@@ -198,7 +235,7 @@ export default function SociosManagement() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-white">Estado de Cuenta de Socios</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white">Padrón de Vecinos y Socios</h1>
         <div className="flex gap-3">
           <button onClick={handleChangeCuota} className="w-full sm:w-auto justify-center bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 transition-colors border border-slate-700 font-medium">
             <Settings size={18} /> Ajustar Cuota ($ {cuota})
@@ -206,8 +243,8 @@ export default function SociosManagement() {
         </div>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg flex items-center justify-between">
-        <div className="relative w-full md:w-1/2 lg:w-1/3">
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="relative w-full lg:w-1/3">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
           <input 
             type="text" 
@@ -216,6 +253,26 @@ export default function SociosManagement() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-slate-950 border border-slate-800 text-white rounded-lg pl-10 pr-4 py-2.5 focus:outline-none focus:border-blue-500 transition-colors"
           />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { key: 'todos', label: `Todos (${socios.length})` },
+            { key: 'aportantes', label: `Socios Aportantes (${socios.filter(s => s.esAportante).length})` },
+            { key: 'gratuitos', label: `Vecinos Gratuitos (${socios.filter(s => !s.esAportante).length})` },
+            { key: 'deuda', label: `Con Deuda (${socios.filter(s => s.esAportante && s.mesesDeuda > 0).length})` },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setFilterMembresia(tab.key as any)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                filterMembresia === tab.key
+                  ? 'bg-blue-600 text-white border-blue-500'
+                  : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -232,11 +289,19 @@ export default function SociosManagement() {
                       <ShieldAlert size={10} /> BOMBERO
                     </span>
                   )}
+                  {socio.esAportante && (
+                    <span className="bg-sky-500/20 text-sky-300 text-[10px] px-2 py-0.5 rounded border border-sky-500/30">
+                      SOCIO APORTANTE
+                    </span>
+                  )}
                 </div>
                 <div className="text-slate-300 text-sm mt-0.5 font-medium">{socio.telefono}</div>
                 {socio.email && <div className="text-slate-400 text-xs break-all">{socio.email}</div>}
                 <div className="text-slate-500 text-xs mt-1">
-                  Alta: {new Date(socio.created_at).toLocaleDateString()}
+                  Alta app: {new Date(socio.created_at).toLocaleDateString()}
+                  {socio.esAportante && socio.fecha_adhesion_socio && (
+                    <> • Socio desde: {new Date(socio.fecha_adhesion_socio).toLocaleDateString()}</>
+                  )}
                 </div>
               </div>
               <span className={`shrink-0 px-2.5 py-1 rounded text-xs font-bold ${
@@ -250,7 +315,11 @@ export default function SociosManagement() {
 
             <div className="flex items-center justify-between bg-slate-950/80 border border-slate-800/80 rounded-lg px-3 py-2">
               <div>
-                {socio.mesesDeuda === 0 ? (
+                {!socio.esAportante ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                    Vecino (Gratuito)
+                  </span>
+                ) : socio.mesesDeuda === 0 ? (
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-500/20 text-green-400 border border-green-500/30">
                     Al día
                   </span>
@@ -261,11 +330,25 @@ export default function SociosManagement() {
                 )}
               </div>
               <div className="text-sm text-slate-400">
-                Deuda: <strong className="text-white font-bold">${socio.montoDeuda}</strong>
+                {socio.esAportante ? (
+                  <>Deuda: <strong className="text-white font-bold">${socio.montoDeuda}</strong></>
+                ) : (
+                  <span className="text-slate-500 text-xs">Sin cuota mensual</span>
+                )}
               </div>
             </div>
 
             <div className="pt-2 border-t border-slate-800 flex flex-wrap gap-2">
+              <button
+                onClick={() => handleToggleAportante(socio)}
+                className={`flex-1 min-w-[140px] justify-center px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 border text-xs font-bold ${
+                  socio.esAportante
+                    ? 'bg-slate-700/50 text-slate-300 hover:bg-slate-700 border-slate-600'
+                    : 'bg-sky-600/20 text-sky-400 hover:bg-sky-600/40 border-sky-600/30'
+                }`}
+              >
+                <UserCheck size={14} /> {socio.esAportante ? 'Quitar Cuota' : 'Hacer Aportante'}
+              </button>
               <button
                 onClick={() => handleTestPush(socio)}
                 className={`flex-1 min-w-[125px] justify-center px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 border text-xs font-bold ${
@@ -282,7 +365,7 @@ export default function SociosManagement() {
               >
                 <KeyRound size={14} /> Clave
               </button>
-              {socio.mesesDeuda > 0 && (
+              {socio.esAportante && socio.mesesDeuda > 0 && (
                 <button 
                   onClick={() => handlePerdonarDeuda(socio)}
                   className="flex-1 min-w-[110px] justify-center bg-yellow-600/20 text-yellow-500 hover:bg-yellow-600/40 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 border border-yellow-600/30 text-xs font-bold"
@@ -336,7 +419,7 @@ export default function SociosManagement() {
         ))}
         {sociosFiltrados.length === 0 && (
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center text-slate-500">
-            No se encontraron socios.
+            No se encontraron vecinos con ese filtro.
           </div>
         )}
       </div>
@@ -347,10 +430,10 @@ export default function SociosManagement() {
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-950 border-b border-slate-800 text-slate-400 uppercase tracking-wider">
             <tr>
-              <th className="px-6 py-4 font-semibold">Socio</th>
+              <th className="px-6 py-4 font-semibold">Vecino / Socio</th>
               <th className="px-6 py-4 font-semibold">Registro</th>
               <th className="px-6 py-4 font-semibold">Estado App</th>
-              <th className="px-6 py-4 font-semibold">Meses Deuda</th>
+              <th className="px-6 py-4 font-semibold">Cuota Social</th>
               <th className="px-6 py-4 font-semibold">Monto Deuda</th>
               <th className="px-6 py-4 font-semibold text-right">Acciones</th>
             </tr>
@@ -359,18 +442,30 @@ export default function SociosManagement() {
             {sociosFiltrados.map((socio) => (
               <tr key={socio.id} className="hover:bg-slate-800/50 transition-colors">
                 <td className="px-6 py-4">
-                  <div className="font-medium text-white flex items-center gap-2">
+                  <div className="font-medium text-white flex items-center gap-2 flex-wrap">
                     {socio.nombre}
                     {socio.is_bombero && (
                       <span className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded border border-red-500/30 flex items-center gap-1">
                         <ShieldAlert size={10} /> BOMBERO
                       </span>
                     )}
+                    {socio.esAportante && (
+                      <span className="bg-sky-500/20 text-sky-300 text-[10px] px-2 py-0.5 rounded border border-sky-500/30">
+                        APORTANTE
+                      </span>
+                    )}
                   </div>
                   <div className="text-slate-400 text-xs">{socio.telefono}</div>
                   {socio.email && <div className="text-slate-500 text-xs">{socio.email}</div>}
                 </td>
-                <td className="px-6 py-4 text-slate-300">{new Date(socio.created_at).toLocaleDateString()}</td>
+                <td className="px-6 py-4 text-slate-300">
+                  <div>{new Date(socio.created_at).toLocaleDateString()}</div>
+                  {socio.esAportante && socio.fecha_adhesion_socio && (
+                    <div className="text-xs text-sky-400/80">
+                      Socio: {new Date(socio.fecha_adhesion_socio).toLocaleDateString()}
+                    </div>
+                  )}
+                </td>
                 <td className="px-6 py-4">
                   <span className={`px-2 py-1 rounded text-xs font-bold ${
                     socio.estado === 'activo' ? 'bg-green-500/20 text-green-400' : 
@@ -381,7 +476,11 @@ export default function SociosManagement() {
                   </span>
                 </td>
                 <td className="px-6 py-4">
-                  {socio.mesesDeuda === 0 ? (
+                  {!socio.esAportante ? (
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                      Vecino (Gratuito)
+                    </span>
+                  ) : socio.mesesDeuda === 0 ? (
                     <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-500/20 text-green-400 border border-green-500/30">
                       Al día
                     </span>
@@ -392,9 +491,20 @@ export default function SociosManagement() {
                   )}
                 </td>
                 <td className="px-6 py-4 font-bold text-white">
-                  ${socio.montoDeuda}
+                  {socio.esAportante ? `$${socio.montoDeuda}` : <span className="text-slate-500 font-normal">—</span>}
                 </td>
                 <td className="px-6 py-4 flex justify-end gap-2 flex-wrap">
+                  <button
+                    onClick={() => handleToggleAportante(socio)}
+                    className={`px-2 py-1 rounded transition-colors flex items-center gap-1 border text-xs font-bold ${
+                      socio.esAportante
+                        ? 'bg-slate-700/50 text-slate-300 hover:bg-slate-700 border-slate-600'
+                        : 'bg-sky-600/20 text-sky-400 hover:bg-sky-600/40 border-sky-600/30'
+                    }`}
+                    title={socio.esAportante ? 'Quitar cuota mensual (pasar a vecino gratuito)' : 'Marcar como Socio Aportante con cuota mensual'}
+                  >
+                    <UserCheck size={14} /> {socio.esAportante ? 'Quitar Cuota' : 'Hacer Aportante'}
+                  </button>
                   <button
                     onClick={() => handleTestPush(socio)}
                     className={`px-2 py-1 rounded transition-colors flex items-center gap-1 border text-xs font-bold ${
@@ -413,7 +523,7 @@ export default function SociosManagement() {
                   >
                     <KeyRound size={14} /> Clave
                   </button>
-                  {socio.mesesDeuda > 0 && (
+                  {socio.esAportante && socio.mesesDeuda > 0 && (
                     <button 
                       onClick={() => handlePerdonarDeuda(socio)}
                       className="bg-yellow-600/20 text-yellow-500 hover:bg-yellow-600/40 px-2 py-1 rounded transition-colors flex items-center gap-1 border border-yellow-600/30 text-xs font-bold" 
@@ -450,9 +560,9 @@ export default function SociosManagement() {
                 </td>
               </tr>
             ))}
-            {socios.length === 0 && (
+            {sociosFiltrados.length === 0 && (
               <tr>
-                <td colSpan={6} className="text-center py-8 text-slate-500">No hay socios registrados</td>
+                <td colSpan={6} className="text-center py-8 text-slate-500">No se encontraron vecinos con ese filtro</td>
               </tr>
             )}
           </tbody>

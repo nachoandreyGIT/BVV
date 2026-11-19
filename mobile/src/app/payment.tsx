@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -14,11 +14,29 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../lib/supabase';
 
 export default function PaymentScreen() {
   const [showDonationSection, setShowDonationSection] = useState(false);
   const [donationAmount, setDonationAmount] = useState('');
+  const [cuotaValor, setCuotaValor] = useState(1500);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  useEffect(() => {
+    const fetchCuota = async () => {
+      try {
+        const { data: config } = await supabase
+          .from('configuraciones')
+          .select('valor')
+          .eq('clave', 'cuota_mensual')
+          .single();
+        if (config && !isNaN(Number(config.valor))) {
+          setCuotaValor(Number(config.valor));
+        }
+      } catch {}
+    };
+    fetchCuota();
+  }, []);
 
   const goToHomeFree = () => {
     router.replace('/');
@@ -29,13 +47,24 @@ export default function PaymentScreen() {
     try {
       const socioId = await AsyncStorage.getItem('socioId');
       const baseUrl = 'https://bomberos-veronica.vercel.app';
-      
+
+      // Marcar explícitamente al vecino como socio aportante voluntario desde hoy
+      if (socioId) {
+        await supabase
+          .from('socios')
+          .update({
+            es_socio_aportante: true,
+            fecha_adhesion_socio: new Date().toISOString(),
+          })
+          .eq('id', socioId);
+      }
+
       const res = await fetch(`${baseUrl}/api/mercadopago/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           socio_id: socioId || 0,
-          monto: 2000,
+          monto: cuotaValor,
           tipo: 'cuota',
           meses: ['Cuota-Alta']
         })
@@ -199,7 +228,7 @@ export default function PaymentScreen() {
                   <Text style={styles.optionBoxDesc}>
                     Aporte mensual automático con cualquier tarjeta. Podés pausar o cancelar cuando quieras.
                   </Text>
-                  <Text style={styles.priceBadge}>Valor sugerido: $2.000 / mes</Text>
+                  <Text style={styles.priceBadge}>Valor sugerido: ${cuotaValor} / mes</Text>
                   <TouchableOpacity 
                     style={styles.mpButton} 
                     onPress={handleSubscription}

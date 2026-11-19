@@ -139,10 +139,13 @@ export default function ProfileScreen() {
             await stopSampleSound();
             router.push('/');
           }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Text style={styles.backButtonText}>← Volver</Text>
         </TouchableOpacity>
-        <Text style={styles.topHeaderTitle}>Mi Perfil</Text>
+        <Text style={styles.topHeaderTitle} numberOfLines={1} adjustsFontSizeToFit>
+          Mi Perfil
+        </Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
@@ -331,30 +334,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   topHeader: {
-    paddingTop: Platform.OS === 'web' ? 40 : 60,
-    paddingBottom: 16,
+    paddingTop: Platform.OS === 'web' ? 20 : 54,
+    paddingBottom: 14,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
+    gap: 12,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
     zIndex: 20,
   },
   topHeaderTitle: {
+    flex: 1,
     color: '#fff',
     fontSize: 20,
     fontWeight: 'bold',
     letterSpacing: 1,
   },
   backButton: {
-    position: 'absolute',
-    left: 20,
-    top: Platform.OS === 'web' ? 36 : 56,
-    padding: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.25)',
   },
   backButtonText: {
     color: '#38bdf8',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
   },
   scrollContainer: {

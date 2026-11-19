@@ -63,11 +63,17 @@ export default function NotificationsScreen() {
       
       {/* Cabecera */}
       <View style={styles.header}>
+        <View style={styles.headerTopBar}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.push('/')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.backButtonText}>← Volver</Text>
+          </TouchableOpacity>
+        </View>
         <Text style={styles.title}>Centro de Avisos</Text>
         <Text style={styles.subtitle}>Información oficial del cuartel</Text>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.push('/')}>
-          <Text style={styles.backButtonText}>← Volver</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Pestañas (Tabs) */}
@@ -157,22 +163,30 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   header: {
-    paddingTop: Platform.OS === 'web' ? 40 : 80,
-    paddingBottom: 20,
+    paddingTop: Platform.OS === 'web' ? 20 : 54,
+    paddingBottom: 18,
+    paddingHorizontal: 16,
     alignItems: 'center',
-    position: 'relative',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
+  headerTopBar: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   backButton: {
-    position: 'absolute',
-    left: 20,
-    top: Platform.OS === 'web' ? 40 : 80,
-    padding: 10,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.25)',
   },
   backButtonText: {
     color: '#38bdf8',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
   },
   title: {
@@ -180,11 +194,13 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     letterSpacing: 1,
+    textAlign: 'center',
   },
   subtitle: {
     color: '#94a3b8',
     fontSize: 14,
     marginTop: 4,
+    textAlign: 'center',
   },
   tabContainer: {
     flexDirection: 'row',
